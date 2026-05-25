@@ -1,0 +1,28 @@
+name: my-dashboard
+description: Streamlit dashboard project
+
+runtime:
+  type: docker
+  dockerfile: Dockerfile
+  image: my-dashboard:dev
+  gpu: false
+
+mounts:
+  - source: .
+    target: /workspace
+
+environment:
+  PYTHONPATH: /workspace
+
+apps:
+  - name: Streamlit
+    id: streamlit
+    command: streamlit run app.py --server.port=8501 --server.address=0.0.0.0
+    port: 8501
+    url_path: /
+
+  - name: JupyterLab
+    id: jupyter
+    command: jupyter lab --ip=0.0.0.0 --port=8888 --no-browser --allow-root --NotebookApp.token=''
+    port: 8888
+    url_path: /

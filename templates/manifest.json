@@ -1,0 +1,20 @@
+{
+  "python-basic": {
+    "name": "Python Basic",
+    "description": "Minimal Python environment with JupyterLab",
+    "gpu": false,
+    "tags": ["python", "jupyter", "cpu"]
+  },
+  "pytorch-cuda": {
+    "name": "PyTorch CUDA",
+    "description": "PyTorch with CUDA 12.1, JupyterLab, and Streamlit",
+    "gpu": true,
+    "tags": ["pytorch", "cuda", "deep-learning", "gpu"]
+  },
+  "streamlit-dashboard": {
+    "name": "Streamlit Dashboard",
+    "description": "Streamlit dashboard app with JupyterLab for exploration",
+    "gpu": false,
+    "tags": ["streamlit", "dashboard", "python", "cpu"]
+  }
+}
