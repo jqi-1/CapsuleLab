@@ -1,0 +1,9 @@
+.git
+.workbench
+data/
+models/
+outputs/
+experiments/
+__pycache__/
+*.pyc
+.env

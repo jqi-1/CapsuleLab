@@ -1,0 +1,36 @@
+name: my-rag-project
+description: RAG research project with retrieval stack, notebooks, and evaluation
+mode: research
+
+presets:
+  notebook_first: true
+  experiment_tracking: true
+  dataset_mounts: true
+  model_cache: true
+  knowledge_graph: true
+  paper_notes: true
+  reproducibility_checks: true
+
+runtime:
+  type: docker
+  dockerfile: Dockerfile
+  image: my-rag-project:dev
+  gpu: false
+
+mounts:
+  - source: .
+    target: /workspace
+  - source: ./data
+    target: /workspace/data
+  - source: ./models
+    target: /workspace/models
+
+environment:
+  PYTHONPATH: /workspace/src
+
+apps:
+  - name: JupyterLab
+    id: jupyter
+    command: jupyter lab --ip=0.0.0.0 --port=8888 --no-browser --allow-root --NotebookApp.token=''
+    port: 8888
+    url_path: /

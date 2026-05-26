@@ -3,18 +3,42 @@
     "name": "Python Basic",
     "description": "Minimal Python environment with JupyterLab",
     "gpu": false,
+    "mode": "research",
     "tags": ["python", "jupyter", "cpu"]
   },
   "pytorch-cuda": {
     "name": "PyTorch CUDA",
     "description": "PyTorch with CUDA 12.1, JupyterLab, and Streamlit",
     "gpu": true,
+    "mode": "research",
     "tags": ["pytorch", "cuda", "deep-learning", "gpu"]
   },
   "streamlit-dashboard": {
     "name": "Streamlit Dashboard",
     "description": "Streamlit dashboard app with JupyterLab for exploration",
     "gpu": false,
+    "mode": "research",
     "tags": ["streamlit", "dashboard", "python", "cpu"]
+  },
+  "research-rag": {
+    "name": "Research RAG",
+    "description": "RAG stack with notebooks, retrieval, evaluation, and source notes",
+    "gpu": false,
+    "mode": "research",
+    "tags": ["rag", "retrieval", "notebooks", "research"]
+  },
+  "deployable-fastapi": {
+    "name": "Deployable FastAPI",
+    "description": "FastAPI model API with health checks, tests, Dockerfile, and deployment manifest",
+    "gpu": false,
+    "mode": "deployable",
+    "tags": ["fastapi", "api", "deploy", "docker"]
+  },
+  "opensource-python-package": {
+    "name": "Open Source Python Package",
+    "description": "Python package with README, license, contributing guide, examples, docs, and CI",
+    "gpu": false,
+    "mode": "opensource",
+    "tags": ["python", "package", "opensource", "pypi"]
   }
 }

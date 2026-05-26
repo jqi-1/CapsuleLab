@@ -1,0 +1,40 @@
+name: my-api
+description: FastAPI model serving API with health checks and tests
+mode: deployable
+
+presets:
+  api_server: true
+  dockerfile_required: true
+  health_checks: true
+  env_validation: true
+  tests_required: true
+  secrets_scan: true
+  deployment_manifest: true
+  logging_dashboard: true
+
+runtime:
+  type: docker
+  dockerfile: Dockerfile
+  image: my-api:dev
+  gpu: false
+
+mounts:
+  - source: .
+    target: /workspace
+  - source: ./data
+    target: /workspace/data
+  - source: ./models
+    target: /workspace/models
+
+environment:
+  PYTHONPATH: /workspace/src
+  APP_ENV: development
+  APP_PORT: "8000"
+
+apps:
+  - name: FastAPI
+    id: fastapi
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    port: 8000
+    url_path: /
+    healthcheck: /health

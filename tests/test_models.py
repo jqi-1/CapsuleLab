@@ -1,5 +1,5 @@
 import pytest
-from backend.models.project import ProjectConfig, RuntimeConfig, AppConfig, Mount, RuntimeType
+from backend.models.project import ProjectConfig, RuntimeConfig, AppConfig, Mount, RuntimeType, Dataset, SecretRef
 
 
 def test_project_config_minimal():
@@ -29,6 +29,8 @@ def test_project_config_full():
             Mount(source="./models", target="/models", read_only=True),
         ],
         environment={"PYTHONPATH": "/workspace"},
+        datasets=[Dataset(name="images", path="./data/images", target="/data/images")],
+        secrets=[SecretRef(name="HF_TOKEN")],
         apps=[
             AppConfig(name="Jupyter", id="jupyter", command="jupyter lab", port=8888),
             AppConfig(name="Streamlit", id="streamlit", command="streamlit run app.py", port=8501),
@@ -40,6 +42,14 @@ def test_project_config_full():
     assert config.mounts[1].read_only is True
     assert len(config.apps) == 2
     assert config.apps[0].id == "jupyter"
+    assert config.datasets[0].read_only is True
+    assert config.secrets[0].required is True
+
+
+def test_process_app_can_omit_port():
+    app = AppConfig(name="Train", id="train", command="python train.py", kind="process")
+
+    assert app.port is None
 
 
 def test_invalid_runtime_type():

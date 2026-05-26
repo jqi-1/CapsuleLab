@@ -1,0 +1,17 @@
+# Core
+jupyterlab>=4.0
+pandas>=2.0
+numpy>=1.24
+
+# ML / retrieval
+scikit-learn>=1.3
+langchain>=0.1
+chromadb>=0.4
+tiktoken>=0.5
+
+# Document parsing
+pypdf>=3.17
+
+# API serving
+fastapi>=0.104
+uvicorn>=0.24

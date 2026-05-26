@@ -1,0 +1,144 @@
+import pytest
+from backend.services import docker_service
+from backend.services.app_service import (
+    check_alive, check_port_available,
+    get_app_url, get_proxy_app_url, create_share_url, list_share_urls,
+    revoke_share_url, build_start_command, get_app_config, get_app_status, AppError,
+)
+from backend.db import sqlite
+from backend.models.project import AppConfig
+
+
+def test_app_log_path():
+    path = docker_service.app_log_path("jupyter")
+    assert path == "/tmp/cap-jupyter.log"
+
+
+def test_app_log_path_special_chars():
+    path = docker_service.app_log_path("my-app_123")
+    assert path == "/tmp/cap-my-app_123.log"
+
+
+def test_get_app_url():
+    cfg = AppConfig(name="Jupyter", id="jupyter", command="jupyter lab", port=8888)
+    assert get_app_url(cfg) == "http://localhost:8888/"
+
+
+def test_get_app_url_custom_path():
+    cfg = AppConfig(name="Streamlit", id="streamlit", command="streamlit run app.py", port=8501, url_path="/app")
+    assert get_app_url(cfg) == "http://localhost:8501/app"
+
+
+def test_get_proxy_app_url():
+    cfg = AppConfig(name="Jupyter", id="jupyter", command="jupyter lab", port=8888)
+
+    assert get_proxy_app_url("cap-demo", cfg) == "http://localhost:10000/projects/cap-demo/apps/jupyter/"
+
+
+def test_get_proxy_app_url_custom_base_and_path():
+    cfg = AppConfig(name="Streamlit", id="streamlit", command="streamlit", port=8501, url_path="/app")
+
+    assert get_proxy_app_url("cap-demo", cfg, "https://share.example/") == "https://share.example/projects/cap-demo/apps/streamlit/app"
+
+
+def test_build_start_command():
+    cfg = AppConfig(name="Jupyter", id="jupyter", command="jupyter lab --port=8888", port=8888)
+    cmd = build_start_command(cfg, "/tmp/cap-jupyter.log")
+    assert "nohup" in cmd
+    assert "jupyter lab --port=8888" in cmd
+    assert "/tmp/cap-jupyter.log" in cmd
+
+
+def test_get_app_config_found():
+    apps = [
+        AppConfig(name="Jupyter", id="jupyter", command="jupyter lab", port=8888),
+        AppConfig(name="Streamlit", id="streamlit", command="streamlit run app.py", port=8501),
+    ]
+
+    config = type("FakeConfig", (), {"apps": apps})()
+
+    result = get_app_config(config, "jupyter")
+    assert result.id == "jupyter"
+
+
+def test_get_app_config_not_found():
+    apps = [AppConfig(name="Jupyter", id="jupyter", command="jupyter lab", port=8888)]
+
+    config = type("FakeConfig", (), {"apps": apps})()
+
+    with pytest.raises(AppError, match="not found"):
+        get_app_config(config, "missing")
+
+
+def test_get_app_status_includes_runtime_metadata(monkeypatch):
+    cfg = AppConfig(name="Jupyter", id="jupyter", command="jupyter lab", port=8888)
+
+    monkeypatch.setattr("backend.services.app_service.docker_service.is_running", lambda _: False)
+    monkeypatch.setattr("backend.services.app_service.get_app_state", lambda *_: None)
+
+    status = get_app_status("cap-demo", cfg, "cap-demo")
+
+    assert status["app_id"] == "jupyter"
+    assert status["url"] == "http://localhost:8888/"
+    assert status["proxy_url"] == "http://localhost:10000/projects/cap-demo/apps/jupyter/"
+    assert status["log_path"] == "/tmp/cap-jupyter.log"
+    assert status["state"] == "stopped"
+    assert status["alive"] is None
+
+
+def test_create_list_and_revoke_share_url(monkeypatch, tmp_path):
+    monkeypatch.setattr(sqlite, "DB_DIR", tmp_path)
+    monkeypatch.setattr(sqlite, "DB_PATH", tmp_path / "capsulelab.db")
+    sqlite.init_db()
+    sqlite.register_project("cap-demo", "demo", str(tmp_path))
+    cfg = AppConfig(name="Jupyter", id="jupyter", command="jupyter lab", port=8888)
+
+    share = create_share_url("cap-demo", cfg, public_base_url="https://example.test", hours=2)
+    shares = list_share_urls("cap-demo", "jupyter")
+
+    assert share["url"].startswith("https://example.test/share/")
+    assert share["target_url"] == "https://example.test/projects/cap-demo/apps/jupyter/"
+    assert shares[0]["token"] == share["token"]
+    assert shares[0]["expired"] is False
+    assert revoke_share_url(share["token"]) is True
+    assert list_share_urls("cap-demo", "jupyter") == []
+
+
+def test_create_share_url_rejects_process_app():
+    cfg = AppConfig(name="Worker", id="worker", command="python worker.py", kind="process")
+
+    with pytest.raises(AppError, match="cannot be shared"):
+        create_share_url("cap-demo", cfg)
+
+
+def test_get_app_status_marks_stale_running_state_failed(monkeypatch):
+    cfg = AppConfig(name="Jupyter", id="jupyter", command="jupyter lab", port=8888)
+    updates = []
+
+    monkeypatch.setattr("backend.services.app_service.docker_service.is_running", lambda _: True)
+    monkeypatch.setattr(
+        "backend.services.app_service.get_app_state",
+        lambda *_: {"status": "running", "pid": 123, "port": 8888},
+    )
+    monkeypatch.setattr("backend.services.app_service.check_alive", lambda *_: False)
+    monkeypatch.setattr(
+        "backend.services.app_service.set_app_state",
+        lambda *args, **kwargs: updates.append((args, kwargs)),
+    )
+
+    status = get_app_status("cap-demo", cfg, "cap-demo")
+
+    assert status["state"] == "failed"
+    assert status["alive"] is False
+    assert updates[0][0] == ("cap-demo", "jupyter", "failed")
+
+
+def test_check_alive_not_running():
+    assert check_alive("nonexistent-container-xyz", 12345) is False
+
+
+@pytest.mark.docker
+def test_check_port_available():
+    ok, msg = check_port_available(1)
+    assert isinstance(ok, bool)
+    assert isinstance(msg, str)

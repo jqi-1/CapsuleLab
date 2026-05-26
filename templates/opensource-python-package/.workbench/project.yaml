@@ -1,0 +1,26 @@
+name: my-package
+description: Python package with documentation, examples, and CI
+mode: opensource
+
+presets:
+  readme_required: true
+  license_required: true
+  contributing_required: true
+  tests_required: true
+  examples_required: true
+  github_actions: true
+  docs_preview: true
+  package_metadata_check: true
+
+runtime:
+  type: docker
+  dockerfile: Dockerfile
+  image: my-package:dev
+  gpu: false
+
+mounts:
+  - source: .
+    target: /workspace
+
+environment:
+  PYTHONPATH: /workspace/src

@@ -60,17 +60,17 @@ Strong success criteria let you loop independently. Weak criteria ("make it work
 **These guidelines are working if:** fewer unnecessary changes in diffs, fewer rewrites due to overcomplication, and clarifying questions come before implementation rather than after mistakes.
 ## Project Goal
 
-Build a local-first data-science and AI workbench similar in spirit to NVIDIA AI Workbench.
+Build CapsuleLab, a local-first data-science and AI workbench similar in spirit to NVIDIA AI Workbench but with its own product identity, config model, backend, UI language, and agent-native features.
 
-The system should let users create, build, run, and move reproducible data-science projects across machines such as a laptop, gaming PC, DGX Spark, remote server, or cloud GPU.
+The system should let users create, build, run, understand, polish, and move reproducible data-science projects across machines such as a laptop, gaming PC, DGX Spark, remote server, or cloud GPU.
 
-The core product is not just a notebook launcher. It is a project runtime manager.
+The core product is not just a notebook launcher. It is a capsule workbench: runtime manager, app launcher, Git/project manager, agent workspace, knowledge graph, and deployment/open-source readiness tool.
 
 This app is for personal, local use. It should not be designed as a hosted SaaS product. It may be published on GitHub as open source, but implementation decisions should assume local installation, local data, local credentials, and single-user control.
 
 ## Core Product Idea
 
-A project is a Git-backed folder with:
+A project is a Git-backed capsule with:
 
 - a containerized runtime
 - a project configuration file
@@ -78,8 +78,16 @@ A project is a Git-backed folder with:
 - dataset/model mounts
 - environment variables
 - local and remote execution support
+- run history and reproducibility checks
+- agent and knowledge-graph context
 
 The same project should run locally or remotely with minimal changes.
+
+Projects should support three profiles:
+
+- `research` for notebooks, experiments, datasets, papers, models, and run reports.
+- `deployable` for APIs, apps, Docker packaging, health checks, tests, logs, and deployment manifests.
+- `opensource` for README/license/contributing/docs/examples/package metadata, CI templates, and release readiness.
 
 ## Primary User Flow
 
@@ -96,17 +104,17 @@ The same project should run locally or remotely with minimal changes.
 
 Implement these features first:
 
-- `wb init`
-- `wb doctor`
-- `wb build`
-- `wb start`
-- `wb stop`
-- `wb logs`
-- `wb app list`
-- `wb app start jupyter`
-- `wb app open jupyter`
-- `wb app stop jupyter`
-- `wb app logs jupyter`
+- `cap init`
+- `cap doctor`
+- `cap build`
+- `cap start`
+- `cap stop`
+- `cap logs`
+- `cap app list`
+- `cap app start jupyter`
+- `cap app open jupyter`
+- `cap app stop jupyter`
+- `cap app logs jupyter`
 
 After the CLI runtime is reliable, add:
 
@@ -153,7 +161,7 @@ Do not implement Kubernetes in the MVP.
 Recommended initial structure:
 
 ```txt
-workbench/
+capsulelab/
   AGENTS.md
   README.md
   docs/
@@ -199,8 +207,10 @@ workbench/
   templates/
     python-basic/
     pytorch-cuda/
-    tensorflow-cuda/
-    rag-stack/
+    streamlit-dashboard/
+    research-rag/
+    deployable-fastapi/
+    opensource-python-package/
 ```
 
 ## Coding Rules
@@ -209,7 +219,7 @@ workbench/
 - Keep the CLI and backend using the same service layer when possible.
 - Keep the CLI-first runtime path working before adding UI behavior.
 - Do not hardcode project paths.
-- All project behavior should come from `.workbench/project.yaml`.
+- All current project behavior should come from `.workbench/project.yaml`; design new schema with a future `capsule.yaml` manifest in mind.
 - Always validate YAML config before running containers.
 - Do not silently swallow Docker errors.
 - Return useful error messages that explain the failed command and likely fix.
@@ -317,7 +327,7 @@ Do not build these first:
 - Avoid becoming a broad platform before the local Docker runner is dependable.
 - Do not treat the product as a notebook launcher; the durable value is portable project runtime management.
 - Keep templates few and reliable at first.
-- Add reproducibility checks early through `wb doctor`.
+- Add reproducibility checks early through `cap doctor`.
 - Make app lifecycle management explicit: start, health, logs, stop, and failure detection.
 
 ## Definition of Done for MVP
@@ -325,17 +335,17 @@ Do not build these first:
 The MVP is complete when a user can:
 
 ```bash
-wb init demo --template pytorch-cuda
+cap init demo --template pytorch-cuda
 cd demo
-wb doctor
-wb build
-wb start
-wb app start jupyter
-wb app open jupyter
-wb app logs jupyter
-wb app stop jupyter
-wb logs
-wb stop
+cap doctor
+cap build
+cap start
+cap app start jupyter
+cap app open jupyter
+cap app logs jupyter
+cap app stop jupyter
+cap logs
+cap stop
 ```
 
 After this works reliably from the CLI, the same operations should become visible from the FastAPI backend and React UI.

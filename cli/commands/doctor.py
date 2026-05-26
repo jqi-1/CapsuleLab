@@ -1,73 +1,71 @@
+import json as json_mod
 import typer
-from pathlib import Path
 from rich.console import Console
 from rich.table import Table
-from backend.services import docker_service, gpu_service, project_service
+from backend.services import project_service, doctor_service
 
 console = Console()
 
 
 def doctor(
     path: str = typer.Option(None, "--path", "-p", help="Project directory"),
+    project_id: str = typer.Option(None, "--project", help="Registered project ID"),
+    json_output: bool = typer.Option(False, "--json", help="Output structured JSON report"),
 ):
+    if project_id:
+        _project_doctor(project_id, json_output)
+        return
+
     try:
         project_path = project_service.resolve_project_path(path)
     except FileNotFoundError as e:
         console.print(f"[red]✗ {e}[/red]")
         raise typer.Exit(1)
 
-    checks: list[tuple[str, bool, str]] = []
+    report = doctor_service.project_doctor_for_path(project_path)
+    _print_report(report, json_output)
 
-    config_path = Path(project_path) / ".workbench" / "project.yaml"
-    if config_path.exists():
-        checks.append(("Config file (.workbench/project.yaml)", True, "Found"))
-        try:
-            config = project_service.load_config(project_path)
-            checks.append(("Config is valid YAML", True, f"Project: {config.name}"))
-            for warning in project_service.validate(config, project_path):
-                checks.append((f"Validation: {warning}", False, "Warning"))
-        except Exception as e:
-            checks.append(("Config is valid YAML", False, str(e)))
-    else:
-        checks.append(("Config file (.workbench/project.yaml)", False, "Missing"))
 
-    df_path = Path(project_path) / "Dockerfile"
-    checks.append(("Dockerfile", df_path.exists(), "Found" if df_path.exists() else "Missing"))
+def _project_doctor(project_id: str, json_output: bool = False):
+    try:
+        report = doctor_service.project_doctor(project_id)
+    except ValueError as e:
+        console.print(f"[red]✗ {e}[/red]")
+        raise typer.Exit(1)
 
-    readme = Path(project_path) / "README.md"
-    checks.append(("README.md", readme.exists(), "Found" if readme.exists() else "Missing"))
+    _print_report(report, json_output)
 
-    docker_ok = docker_service.check_docker()
-    checks.append(("Docker installed", docker_ok, "Available" if docker_ok else "Not found"))
 
-    if docker_ok:
-        containers = docker_service.ps()
-        checks.append(("Docker daemon responding", True, f"{len(containers)} container(s) running"))
+def _print_report(report: doctor_service.DoctorReport, json_output: bool = False):
+    if json_output:
+        console.print(json_mod.dumps(report.to_dict(), indent=2))
+        return
 
-    gpu_info = gpu_service.get_gpu_info()
-    if gpu_info.available:
-        checks.append(("GPU detected", True, f"{gpu_info.name} ({gpu_info.vram_mb} MB)"))
-        docker_gpu = gpu_service.docker_gpu_available()
-        checks.append(("Docker GPU support", docker_gpu, "Available" if docker_gpu else "Not configured"))
-    else:
-        checks.append(("GPU detected", False, "Not found — running in CPU mode"))
-
-    table = Table(title=f"Doctor Report — {Path(project_path).name}")
+    table = Table(title=f"Doctor Report — {report.project_name} (project: {report.project_path})")
     table.add_column("Check", style="cyan")
+    table.add_column("Severity", style="bold")
     table.add_column("Status", style="bold")
     table.add_column("Detail")
 
-    all_ok = True
-    for label, ok, detail in checks:
-        status = "[green]✓[/green]" if ok else "[red]✗[/red]"
-        if not ok:
-            all_ok = False
-        table.add_row(label, status, detail)
+    for check in report.checks:
+        status = "[green]✓[/green]" if check.ok else "[red]✗[/red]"
+        sev_str = {
+            "info": "[blue]info[/blue]",
+            "warning": "[yellow]warn[/yellow]",
+            "error": "[red]error[/red]",
+            "critical": "[red bold]CRIT[/red bold]",
+        }.get(check.severity.value, check.severity.value)
+        table.add_row(check.label, sev_str, status, check.detail)
 
     console.print(table)
 
-    if all_ok:
-        console.print("\n[green]All checks passed. Ready to build.[/green]")
-    else:
-        console.print("\n[yellow]Some checks failed. Fix the issues above before building.[/yellow]")
+    if not report.all_ok():
+        errors = report.errors()
+        warnings = report.warnings()
+        if errors:
+            console.print(f"\n[red]{len(errors)} error(s) found. Fix them before building.[/red]")
+        if warnings:
+            console.print(f"\n[yellow]{len(warnings)} warning(s) found. Review before building.[/yellow]")
         raise typer.Exit(1)
+    else:
+        console.print("\n[green]All checks passed. Ready to build.[/green]")

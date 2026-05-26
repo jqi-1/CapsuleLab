@@ -7,6 +7,7 @@ from backend.services import project_service
 from backend.models.project import ProjectConfig, RuntimeConfig, AppConfig
 
 
+@pytest.mark.pure_config
 def test_create_from_template():
     with tempfile.TemporaryDirectory() as tmpdir:
         tmpl_dir = Path(tmpdir) / "template"
@@ -31,6 +32,7 @@ def test_create_from_template():
         assert loaded["runtime"]["image"] == "my-project:dev"
 
 
+@pytest.mark.pure_config
 def test_load_config():
     with tempfile.TemporaryDirectory() as tmpdir:
         proj_dir = Path(tmpdir) / "testproj"
@@ -48,12 +50,14 @@ def test_load_config():
         assert loaded.runtime.image == "testproj:dev"
 
 
+@pytest.mark.pure_config
 def test_load_config_missing():
     with tempfile.TemporaryDirectory() as tmpdir:
         with pytest.raises(FileNotFoundError):
             project_service.load_config(tmpdir)
 
 
+@pytest.mark.pure_config
 def test_validate():
     config = ProjectConfig(
         name="test",
@@ -69,12 +73,27 @@ def test_validate():
     assert any("invalid port" in w for w in warnings)
 
 
+@pytest.mark.pure_config
+def test_validate_web_app_requires_port():
+    config = ProjectConfig(
+        name="test",
+        runtime=RuntimeConfig(image="test:dev"),
+        apps=[AppConfig(name="Web", id="web", command="python app.py")],
+    )
+
+    warnings = project_service.validate(config)
+
+    assert any("has no port" in w for w in warnings)
+
+
+@pytest.mark.pure_config
 def test_get_container_name():
     assert project_service.get_container_name("My Project") == "cap-my-project"
     assert project_service.get_container_name("test_project") == "cap-test-project"
     assert project_service.get_container_name("simple") == "cap-simple"
 
 
+@pytest.mark.pure_config
 def test_get_project_id():
     assert project_service.get_project_id("My Project") == "cap-my-project"
     assert project_service.get_project_id("test_project") == "cap-test-project"

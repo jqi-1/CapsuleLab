@@ -1,300 +1,508 @@
 # Architecture
 
-## Overview
+## Purpose
 
-The data-science workbench should use a control-plane and runtime-agent architecture.
+CapsuleLab is a local-first control plane for reproducible, containerized AI and data-science projects. It should make a project portable across machines while keeping code, data paths, credentials, Docker access, and runtime state under the user's control.
 
-The product should stay local-first and CLI-first until the runtime behavior is stable. The UI and API should wrap the same service layer as the CLI rather than becoming a separate product path.
+The core product object is a capsule: a portable package containing code, environment, launchable apps, data and model mounts, secret references, run history, agent context, project metadata, and project knowledge.
 
-The system has four major parts:
+The architecture is intentionally smaller than NVIDIA AI Workbench, but it follows several proven ideas from that product category:
 
-1. Frontend UI
-2. Backend API
-3. Local or remote execution layer
-4. Containerized project runtime
+- versioned project configuration
+- local and remote locations
+- reproducible containers
+- managed web applications
+- Git-aware project workflows
+- IDE and agent work inside a project boundary
+- project knowledge graphs and agent-readable context
+- orchestrator-style visibility across builds, runs, apps, logs, Git, resources, and locations
+- multi-container support for real AI systems
+- clear separation between portable project intent and host-specific state
 
-```txt
-┌────────────────────────────┐
-│        Workbench UI         │
-│ React / TypeScript          │
-└─────────────┬──────────────┘
-              │
-              v
-┌────────────────────────────┐
-│      Control API            │
-│ FastAPI                     │
-│ - projects                  │
-│ - environments              │
-│ - locations                 │
-│ - apps                      │
-│ - logs                      │
-└─────────────┬──────────────┘
-              │
-              v
-┌────────────────────────────┐
-│      Execution Layer        │
-│ Local service or SSH runner │
-│ - Docker commands           │
-│ - Git commands              │
-│ - GPU detection             │
-│ - app health checks         │
-└─────────────┬──────────────┘
-              │
-              v
-┌────────────────────────────┐
-│      Project Runtime        │
-│ Container / Compose stack   │
-│ - JupyterLab                │
-│ - VS Code Server            │
-│ - MLflow                    │
-│ - Streamlit                 │
-│ - Gradio                    │
-└────────────────────────────┘
-```
-
-## Frontend
-
-The frontend should provide:
-
-- dashboard
-- project list
-- project detail page
-- environment editor
-- app launcher
-- logs viewer
-- locations page
-- settings page
-
-Recommended stack:
-
-- React
-- TypeScript
-- Tailwind CSS
-- TanStack Query for API state
-- Monaco Editor later for config editing
-
-## Backend
-
-The backend should be a FastAPI service.
-
-Main API areas:
+## Current System Shape
 
 ```txt
-GET  /projects
-POST /projects
-GET  /projects/{id}
-POST /projects/{id}/build
-POST /projects/{id}/start
-POST /projects/{id}/stop
-GET  /projects/{id}/logs
-GET  /projects/{id}/apps
-POST /projects/{id}/apps/{app_name}/start
-POST /projects/{id}/apps/{app_name}/stop
-GET  /locations
-POST /locations
+┌────────────────────────────────────────────────────────────┐
+│                    Control Surfaces                        │
+│                                                            │
+│   cap CLI          FastAPI /api          React/Vite UI      │
+└──────────────┬───────────────┬─────────────────────────────┘
+               │               │
+               └───────┬───────┘
+                       v
+┌────────────────────────────────────────────────────────────┐
+│                    Service Layer                           │
+│                                                            │
+│ project   docker   app       compose   ssh      template   │
+│ git       image    resource  secrets   runs     data       │
+│ agent     graph    profile   package   deploy              │
+└──────────────┬─────────────────────────────────────────────┘
+               │
+               v
+┌────────────────────────────────────────────────────────────┐
+│                 State And Configuration                    │
+│                                                            │
+│ .workbench/project.yaml     ~/.capsulelab/capsulelab.db     │
+│ capsule.yaml target          local observed/private state   │
+└──────────────┬─────────────────────────────────────────────┘
+               │
+               v
+┌────────────────────────────────────────────────────────────┐
+│                  Execution Adapters                        │
+│                                                            │
+│ local Docker       SSH + Docker       Docker Compose        │
+│ GPU checks         rsync sync         logs/status/ports     │
+└──────────────┬─────────────────────────────────────────────┘
+               │
+               v
+┌────────────────────────────────────────────────────────────┐
+│                    Project Runtime                         │
+│                                                            │
+│ a single project container or compose stack around a repo   │
+└────────────────────────────────────────────────────────────┘
 ```
 
-## Backend Modules
+The CLI and API should be thin wrappers over services. The UI should consume API facts, not infer Docker, Git, SSH, Compose, or app state in the browser.
 
-Recommended backend structure:
+## Next Architecture Stages
+
+The next stages should deepen the current architecture rather than widen it too quickly. Each stage should leave the CLI, API, and UI using the same service-layer facts.
+
+### Stage 1: Runtime Parity And Project Doctor
+
+Status: Completed
+
+Goal: make the existing local workbench trustworthy.
+
+Build:
+
+- shared error types for expected Docker, config, GPU, port, app, Git, secret, dataset, and stale-state failures
+- one canonical project status shape used by CLI, API, and UI
+- project-level doctor reports that combine environment, manifest, Dockerfile, image, apps, Git, secrets, datasets, caches, package files, and build metadata
+- app lifecycle cleanup when containers restart or app processes disappear
+- smoke-test boundaries for pure config checks, Docker checks, SSH checks, and Compose checks
+
+Architecture impact:
+
+- Add a small shared error model under `backend/models` or `backend/services` before expanding route behavior.
+- Keep `doctor_service.py` as the aggregator rather than spreading readiness checks across route handlers and UI components.
+- Treat project status as a service-owned DTO; the frontend renders it without reconstructing runtime state.
+
+### Stage 2: Profiles, Templates, And Manifest Evolution
+
+Status: Not done
+
+Goal: introduce `research`, `deployable`, and `opensource` profiles as defaults and checks, not separate runtimes.
+
+Build:
+
+- `mode` and `presets` in the current `.workbench/project.yaml`
+- profile-aware template metadata in `templates/manifest.json`
+- profile-specific doctor checks and UI dashboard hints
+- first maintained profile templates: `research-rag`, `deployable-fastapi`, and `opensource-python-package`
+- a documented migration path from `.workbench/project.yaml` toward top-level `capsule.yaml`
+
+Architecture impact:
+
+- Add `profile_service.py` only when more than one command or route needs profile decisions.
+- Keep profile behavior declarative: profiles choose defaults, checks, and dashboard emphasis; they should not fork project loading, runtime startup, or app lifecycle logic.
+- Do not rename the current manifest path until the code can read both old and new paths and write one canonical format.
+
+### Stage 3: Managed Apps, URLs, And Remote Locations
+
+Status: Completed
+
+Goal: make local and SSH projects feel consistent when launching web apps, process apps, and Compose apps.
+
+Build:
+
+- stronger app state based on PID, port, healthcheck, log path, recent exit state, and owning container
+- stable local URL formation, with an optional reverse proxy after direct URLs are reliable
+- remote location status that reports SSH, Docker, GPU, disk, project root, and tunnel assumptions
+- per-location path mapping for datasets, caches, and secrets
+- Compose service status folded into the same project status vocabulary as single-container projects
+
+Architecture impact:
+
+- Keep `app_service.py` responsible for app state, not the UI.
+- Keep `ssh_service.py` as a transport adapter until raw SSH behavior is exhausted.
+- Introduce a proxy service only after direct local and SSH URL rules are documented and tested.
+- Avoid a remote daemon until the SSH model has clear performance or lifecycle problems that cannot be solved cleanly.
+
+### Stage 4: Knowledge Graph And Agent Workspace
+
+Status: Not done
+
+Goal: make projects understandable to agents and users without letting agents escape the capsule boundary.
+
+Build:
+
+- local project graph index for code, notebooks, papers, configs, docs, runs, apps, templates, and manifest data
+- generated project summaries for setup, architecture, app usage, data/model mounts, recent runs, and known readiness issues
+- reviewed agent actions for build fixes, README/docs updates, benchmark interpretation, and experiment reports
+- local storage policy for graph indexes and agent scratch state
+
+Architecture impact:
+
+- Add `graph_service.py` as a local index manager; it should read project files and local state but not become a second source of truth.
+- Add `agent_service.py` as an orchestration boundary for prompts, allowed files, reviewed edits, and action history.
+- Store graph indexes and agent scratch data outside the project unless the user explicitly exports generated artifacts.
+
+### Stage 5: Packaging, Deployment Readiness, And Open-Source Release
+
+Status: Not done
+
+Goal: help users turn a capsule into a deployable or public artifact while preserving local-first control.
+
+Build:
+
+- deployable profile checks for health endpoints, env validation, secrets scan, tests, logs, Dockerfile quality, dependency scan, and deployment manifest
+- open-source profile checks for README, license, contributing guide, examples, docs, package metadata, GitHub templates, CI, changelog, and release checklist
+- package/export flow that can produce a shareable capsule snapshot without local secrets or machine-specific paths
+- registry and publish helpers only after local packaging rules are reliable
+
+Architecture impact:
+
+- Add package/deploy services only around concrete workflows; avoid a generic plugin system until there are repeated extension points.
+- Treat deployment manifests and release docs as generated project artifacts that require user review before writing.
+- Keep hosted accounts, billing, multi-user permissions, and Kubernetes outside the architecture until the local packaging story is solid.
+
+## Desired State: Project Manifest
+
+The project config is the portable contract that belongs in the project repository. The current implementation uses `.workbench/project.yaml`; the target public manifest name is `capsule.yaml`.
+
+Current model:
+
+- project name and description
+- project profile: `research`, `deployable`, or `opensource`
+- runtime type, Dockerfile, image, and GPU request
+- mounts
+- cache mounts
+- datasets
+- required secret references
+- environment variables
+- launchable apps with commands, ports, URL paths, health checks, and kind
+- optional agent and knowledge-graph settings
+
+The config should describe what should exist, not what happened last time. It must not store PIDs, container IDs, app health, log offsets, local secret values, remote sync timestamps, or last start times.
+
+Future config pressure should be handled conservatively. Add fields only when at least one real template or workflow needs them.
+
+## Project Profiles
+
+Profiles tune the product around three common jobs:
+
+- `research`: notebook-first experiments, papers, datasets, models, run comparison, reports, and knowledge graphs.
+- `deployable`: API/service/app packaging, Docker checks, health checks, secrets scans, tests, logs, and deployment manifests.
+- `opensource`: public project polish, README/license/contributing/docs/examples/package metadata, GitHub automation, and release checklists.
+
+Profiles should influence template selection, validation, dashboard layout, recommended apps, and generated docs. They should reuse the same manifest, service layer, runtime model, and local database.
+
+## Local State: SQLite
+
+SQLite stores CapsuleLab-owned state that is either observed, private, or host-specific.
+
+Current location:
 
 ```txt
-backend/
-  main.py
-  api/
-    projects.py
-    environments.py
-    locations.py
-    apps.py
-    logs.py
-    git.py
-  services/
-    docker_service.py
-    git_service.py
-    project_service.py
-    ssh_service.py
-    gpu_service.py
-    app_service.py
-  models/
-    project.py
-    location.py
-    app.py
-  db/
-    sqlite.py
+~/.capsulelab/capsulelab.db
 ```
 
-## Service Responsibilities
+State categories:
 
-### Project Service
+- registered projects and paths
+- app runtime state
+- build metadata
+- SSH locations
+- local secret values or secret presence metadata
+- lightweight experiment runs
+- local settings-style facts
 
-Responsible for:
+Runtime state may be stale. Before reporting something as live, services should re-check Docker, SSH, Compose, or the filesystem.
 
-- creating projects
-- loading project configs
-- validating project configs
-- listing projects
-- deleting projects
-- exporting projects
-- locating project directories
+## Control Surfaces
 
-### Docker Service
+### CLI
 
-Responsible for:
+`cap` is the primary builder and debugging surface. It may print human-friendly tables, open browsers, prompt for secrets, and expose power-user commands.
 
-- `docker build`
-- `docker run`
-- `docker stop`
-- `docker logs`
-- `docker ps`
-- `docker exec`
-- `docker compose up`
-- `docker compose down`
+Current command groups:
 
-### Git Service
+- `cap init`
+- `cap doctor`
+- `cap build`
+- `cap start`
+- `cap stop`
+- `cap logs`
+- `cap app ...`
+- `cap location ...`
+- `cap compose ...`
+- `cap sync ...`
+- `cap template ...`
+- `cap project ...`
+- `cap secrets ...`
+- `cap runs ...`
+- `cap resources ...`
+- `cap images ...`
+- `cap data ...`
 
-Responsible for:
+CLI commands should delegate business rules to `backend/services`. If a command needs logic the API or UI will also need, put it in a service first.
 
-- clone
-- status
-- commit
-- pull
-- push
-- branch detection
-- remote URL detection
+### FastAPI Backend
 
-### GPU Service
+The backend is the local control API. It initializes SQLite on startup and exposes project/runtime operations under `/api`.
 
-Responsible for:
+Current route areas:
 
-- detecting `nvidia-smi`
-- checking GPU name
-- checking VRAM
-- checking CUDA driver version
-- checking Docker GPU runtime support
-- deciding whether to pass `--gpus all`
+```txt
+GET  /api/health
+GET  /api/doctor
 
-### App Service
+GET  /api/projects
+POST /api/projects
+GET  /api/projects/{project_id}
+POST /api/projects/{project_id}/build
+POST /api/projects/{project_id}/start
+POST /api/projects/{project_id}/stop
+GET  /api/projects/{project_id}/status
+GET  /api/projects/{project_id}/logs
 
-Responsible for:
+GET  /api/projects/{project_id}/apps
+POST /api/projects/{project_id}/apps/{app_id}/start
+POST /api/projects/{project_id}/apps/{app_id}/stop
+GET  /api/projects/{project_id}/apps/{app_id}/status
+GET  /api/projects/{project_id}/apps/{app_id}/logs
 
-- starting JupyterLab
-- starting VS Code Server
-- starting Streamlit
-- starting Gradio
-- starting MLflow
-- checking app ports
-- returning browser URLs
-- tracking app process state
-- stopping individual app processes
-- collecting app-level logs
+GET  /api/projects/{project_id}/compose/status
+POST /api/projects/{project_id}/compose/up
+POST /api/projects/{project_id}/compose/down
+GET  /api/projects/{project_id}/compose/logs
 
-### SSH Service
+GET  /api/projects/{project_id}/git/status
+GET  /api/projects/{project_id}/secrets
+GET  /api/projects/{project_id}/runs
+POST /api/projects/{project_id}/runs
+POST /api/projects/{project_id}/runs/{run_id}/finish
+GET  /api/projects/{project_id}/resources
+GET  /api/projects/{project_id}/images/check
+GET  /api/projects/{project_id}/images/catalog
 
-Responsible for:
+GET  /api/locations
+GET  /api/locations/{name}/status
+```
 
-- storing remote location configs
-- running commands through SSH
-- checking remote Docker availability
-- starting projects on remote hosts
-- streaming remote logs
+API handlers should validate request shape, load local state, call services, and translate known failures into useful HTTP errors.
+
+### Frontend
+
+The React/Vite frontend is a local operator console.
+
+Current capabilities:
+
+- list registered projects
+- create projects from templates
+- inspect project config and runtime status
+- build, start, and stop project containers
+- view logs
+- start, stop, open, and inspect apps
+- show readiness, Docker/GPU, Git, resources, secrets, and build metadata
+- show Compose status and actions
+- show locations and location status
+
+The UI must not construct Docker commands or assume runtime state independently. It should present API status and actions clearly.
+
+## Service Modules
+
+Current modules:
+
+```txt
+backend/services/
+  app_service.py
+  build_assistant_service.py
+  compose_service.py
+  doctor_service.py
+  docker_service.py
+  git_service.py
+  gpu_service.py
+  ide_service.py
+  image_service.py
+  location_override_service.py
+  package_service.py
+  project_service.py
+  resource_service.py
+  run_service.py
+  secrets_service.py
+  ssh_service.py
+  template_service.py
+```
+
+Ownership:
+
+- `project_service.py`: project path resolution, config loading, validation, project IDs, container names, template creation.
+- `docker_service.py`: Docker availability, build/run/stop/logs/exec/inspect/ps, ports, labels, image inspection, app log conventions.
+- `app_service.py`: app start/stop/status/logs inside a running project container.
+- `compose_service.py`: Compose file detection, up/down/status/logs.
+- `gpu_service.py`: local GPU detection, `nvidia-smi`, Docker GPU runtime checks.
+- `ssh_service.py`: SSH command execution, remote Docker/GPU status, remote path conventions, rsync sync.
+- `git_service.py`: repository status, branch, remote, dirty file count, Git LFS availability.
+- `image_service.py`: BYOC checks and image catalog metadata.
+- `resource_service.py`: disk and GPU resource summaries.
+- `run_service.py`: lightweight local experiment run registry.
+- `secrets_service.py`: project secret storage/presence outside the repo.
+- `template_service.py`: template catalog and template checks.
+- `location_override_service.py`: per-location path overrides for datasets, caches, and secrets.
+- `package_service.py`: capsule export/import for portable project snapshots.
+- `build_assistant_service.py`: failed-build log analysis and constrained build-script edit proposals.
+- `doctor_service.py`: project-level reproducibility report aggregating environment, config, Docker, GPU, Git, secrets, datasets, caches, and build checks.
+- `ide_service.py`: IDE attach helpers for Cursor, VS Code, and Windsurf with project rules generation.
+- future `profile_service.py`: profile-specific defaults, validation checks, and dashboard hints.
+- future `agent_service.py`: agent workspace setup, prompt/context boundaries, and reviewed agent actions.
+- future `graph_service.py`: project knowledge graph indexing, paper/source links, and agent-readable summaries.
+
+The service layer is the product core. Control surfaces should not grow duplicate lifecycle behavior.
 
 ## Runtime Model
 
-The local runtime should use Docker first.
+### Single-Container Runtime
 
-A basic start command should behave like:
+The default runtime is one long-lived Docker container per project. The project is mounted into `/workspace`, app ports are mapped, cache and dataset mounts are attached, optional GPU access is enabled, and the container stays alive while apps run inside it.
+
+Representative shape:
 
 ```bash
 docker run -d \
-  --name wb-my-project \
+  --name cap-my-project \
   --gpus all \
-  -v "$PWD:/workspace" \
+  -v "/path/to/project:/workspace" \
   -w /workspace \
   -p 8888:8888 \
-  -p 8080:8080 \
   image-name:dev \
   sleep infinity
 ```
 
-The project container should stay alive while app commands are launched inside it through `docker exec`.
+Apps launch through `docker exec` inside the project container. App definitions live in `.workbench/project.yaml`; app runtime observations live in SQLite.
 
-## App Launch Model
+Hardening direction:
 
-An app is a command launched inside the running container.
+- verify container ownership before stop/remove
+- detect stale app state after container restart
+- validate ports before launch
+- report healthcheck failures clearly
+- standardize log paths and app URLs
+- support stable app proxying later
 
-Example:
+### Compose Runtime
 
-```bash
-docker exec -d wb-my-project \
-  jupyter lab --ip=0.0.0.0 --port=8888 --no-browser --allow-root
-```
+Compose is the multi-service adapter for RAG stacks, model servers, MLflow plus databases, app-plus-worker systems, and other projects that should not be forced into one container.
 
-The workbench should then return:
+Compose should remain explicit. The architecture must distinguish:
 
-```txt
-http://localhost:8888
-```
+- the project container, when present
+- the Compose stack
+- service health
+- service logs
+- ports and app URLs
+- shared networks and volumes
 
-Launching an app is not enough. The workbench also needs an app lifecycle model:
+Before adding more Compose UI, define a stable status shape that can survive different Compose file layouts.
 
-- know whether the app is starting, healthy, stopped, or failed
-- keep enough process metadata to stop the app without stopping the whole project container
-- store or stream app-specific logs
-- detect when an app exits unexpectedly
-- handle port conflicts before launching
+### SSH Runtime
 
-For the MVP, this can be lightweight state in SQLite or a host-side runtime state file. The project config should describe desired apps; runtime state should describe what is currently running.
+SSH locations are the first remote adapter. CapsuleLab currently uses SSH command execution and rsync rather than installing a remote CapsuleLab service.
 
-## Database
+SSH mode should own:
 
-Start with SQLite.
+- reachability
+- remote Docker availability
+- remote GPU availability
+- project root and remote project path
+- remote sync
+- remote start/stop/logs
+- remote app URL formation
 
-Store:
+This is intentionally less abstract than NVIDIA AI Workbench's remote service/proxy tunnel model. Do not add a remote agent until SSH behavior is stable and the missing parity is well understood.
 
-- known projects
-- project paths
-- recent projects
-- locations
-- app runtime state
-- user settings
+## Data, Secrets, And Host-Specific Values
 
-Do not duplicate all project config in the database. The source of truth should remain the project files.
+CapsuleLab should keep portable project intent separate from local reality.
 
-The database may cache runtime observations, but it should not become the canonical definition of a project. Project portability depends on the Git-backed project folder remaining sufficient to rebuild and run the project elsewhere.
+Versioned in the project:
 
-## Remote Locations
+- required secret names
+- dataset logical names and target paths
+- cache mount intent
+- app commands and ports
+- selected project profile and safe preset flags
+- agent/knowledge graph intent that is safe to share
+- environment variable names only when safe
 
-A location is a machine where a project can run.
+Local or per-location:
 
-Example:
+- secret values
+- host dataset paths
+- cache source paths
+- remote project roots
+- SSH keys and usernames
+- machine capability facts
+- local graph indexes and agent scratch state, unless explicitly exported
 
-```yaml
-name: dgx-spark
-type: ssh
-host: 192.168.1.50
-user: jeremy
-project_root: /home/jeremy/workbench-projects
-runtime: docker
-gpu: true
-```
+This boundary is essential for Git workflows and safe sharing.
 
-## Local-First Principle
+## Git And Project Lifecycle
 
-The workbench should work fully offline for local projects.
+AI Workbench treats a project as a managed Git repository with visible code and environment changes. CapsuleLab already reports Git status but still needs full lifecycle workflows:
 
-Cloud, sync, and account features should not be required for the core workflow.
+- import an existing path
+- clone a repo and scaffold missing config
+- repair project inventory
+- detect publish readiness
+- show dirty files before build/run
+- avoid writing secrets or local-only paths into Git-tracked files
 
-## Deployment Assumption
+Git should be treated as a first-class reproducibility signal, not a decorative status line.
 
-The workbench is not intended to be deployed as a hosted production service. It should run on a user's own machine and optionally control other machines through local configuration, SSH, and Git.
+## NVIDIA AI Workbench Gap Map
 
-If the project is open-sourced, distribution should still favor local installation and self-contained setup. Avoid architecture that depends on central accounts, hosted control planes, production observability stacks, multi-tenant permissions, or cloud billing.
+The current repo covers the beginning of these areas:
 
-## Architecture Concerns
+- project config and reproducible containers
+- local CLI/API/UI surfaces
+- apps inside containers
+- Docker Compose
+- SSH locations
+- Git/resource/secrets/run metadata
+- data/cache declarations
+- templates
 
-- Avoid building a broad platform before the local Docker runner is reliable.
-- Keep the CLI, API, and UI on one shared service layer.
-- Treat remote SSH execution as a transport for the same project operations, not a second runtime model.
-- Delay a remote agent until raw SSH exposes clear pain that an agent would solve.
-- Keep Kubernetes, multi-user permissions, hosted SaaS features, and cloud billing out of the early architecture.
-- Prefer local files, local SQLite, and local configuration over hosted infrastructure.
+Missing or partial compared with NVIDIA AI Workbench:
+
+- feature parity between desktop UI and CLI
+- remote location service tunnels and proxy tunnels
+- secure shared URLs for running web apps
+- first-class clone/import/publish Git workflows
+- IDE attach helpers for VS Code, Cursor, and Windsurf
+- explicit coding-agent workspace workflow
+- project knowledge graph and agent-readable project memory
+- profile-specific dashboards and checks for research, deployable, and open-source projects
+- build assistant or structured build failure diagnosis
+- automatic management of system dependencies such as drivers/container toolkit
+- richer environment editing that writes config back safely
+- NGC, GitHub/GitLab, Brev, Endpoints, and registry integrations
+- robust custom base image workflow
+- project deep links
+- settings for proxy, certificates, runtime choices, and app components
+
+CapsuleLab should close the gaps that strengthen local-first reproducibility and defer hosted/cloud-heavy features until the local and SSH story is solid.
+
+## Architecture Rules
+
+- Put shared behavior in services before exposing it in CLI, API, or UI.
+- Keep the project manifest as desired state and SQLite as observed/private/local state.
+- Treat `.workbench/project.yaml` as the current manifest path and `capsule.yaml` as the target public contract.
+- Re-check live runtime facts before reporting them.
+- Prefer clear failure messages over clever recovery.
+- Do not store secret values in project files.
+- Do not let remote execution imply a remote agent unless one exists.
+- Keep templates small, maintained, and smoke-testable.
+- Add schema only when a real workflow needs it.
+- Treat Git state, package files, datasets, caches, secrets, and build metadata as reproducibility inputs.

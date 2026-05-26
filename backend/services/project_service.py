@@ -2,7 +2,7 @@ import os
 import shutil
 import yaml
 from pathlib import Path
-from backend.models.project import ProjectConfig
+from backend.models.project import ProjectConfig, default_presets, ProjectMode
 
 
 WORKBENCH_DIR = ".workbench"
@@ -17,7 +17,10 @@ def load_config(project_path: str) -> ProjectConfig:
         data = yaml.safe_load(f)
     if not data:
         raise ValueError(f"Empty or invalid YAML in {config_path}")
-    return ProjectConfig(**data)
+    cfg = ProjectConfig(**data)
+    if cfg.mode and not cfg.presets:
+        cfg.presets = default_presets(cfg.mode)
+    return cfg
 
 
 def validate(config: ProjectConfig, project_path: str | None = None) -> list[str]:
@@ -29,8 +32,32 @@ def validate(config: ProjectConfig, project_path: str | None = None) -> list[str
         if not df_path.exists():
             warnings.append(f"Dockerfile not found at {config.runtime.dockerfile}")
     for app in config.apps:
-        if app.port < 1 or app.port > 65535:
+        if app.kind == "web" and app.port is None:
+            warnings.append(f"App '{app.id}' is a web app but has no port")
+        if app.port is not None and (app.port < 1 or app.port > 65535):
             warnings.append(f"App '{app.id}' has invalid port {app.port}")
+    for dataset in config.datasets:
+        if not dataset.name.strip():
+            warnings.append("Dataset name is empty")
+        if not dataset.path.strip():
+            warnings.append(f"Dataset '{dataset.name}' has empty path")
+
+    if config.mode == ProjectMode.deployable:
+        p = Path(project_path or ".")
+        if not (p / "tests").exists():
+            warnings.append(f"Deployable mode: tests/ directory not found")
+        if config.runtime.type.value != "docker":
+            warnings.append(f"Deployable mode: runtime type should be 'docker', got '{config.runtime.type.value}'")
+    elif config.mode == ProjectMode.opensource:
+        p = Path(project_path or ".")
+        for required in ["README.md", "LICENSE", "CONTRIBUTING.md"]:
+            if not (p / required).exists():
+                warnings.append(f"Open-source mode: {required} not found")
+    elif config.mode == ProjectMode.research:
+        p = Path(project_path or ".")
+        if not (p / "notebooks").exists():
+            warnings.append(f"Research mode: notebooks/ directory not found")
+
     return warnings
 
 

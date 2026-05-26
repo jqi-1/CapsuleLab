@@ -1,10 +1,9 @@
 import typer
 import webbrowser
-import shlex
 from rich.console import Console
 from rich.table import Table
-from backend.services import docker_service, project_service
-from backend.db.sqlite import set_app_state, get_app_state, list_app_states
+from backend.services import docker_service, project_service, app_service
+from backend.db.sqlite import set_app_state
 
 console = Console()
 app_cmd = typer.Typer(name="app", help="Manage apps inside a project container", no_args_is_help=True)
@@ -25,29 +24,49 @@ def _get_project_context(path: str | None):
         raise typer.Exit(1)
 
 
+def _get_app_config(config, app_id: str):
+    try:
+        return app_service.get_app_config(config, app_id)
+    except app_service.AppError as e:
+        console.print(f"[red]{e}[/red]")
+        raise typer.Exit(1)
+
+
 @app_cmd.command("list")
 def app_list(
     path: str = typer.Option(None, "--path", "-p", help="Project directory"),
 ):
     _, config, project_id, container_name = _get_project_context(path)
     running = docker_service.is_running(container_name)
-    states = list_app_states(project_id)
 
     table = Table(title=f"Apps — {config.name}")
     table.add_column("ID", style="cyan")
     table.add_column("Name")
     table.add_column("Port")
     table.add_column("Status")
+    table.add_column("Health")
     table.add_column("PID")
+    table.add_column("Proxy URL")
 
     for app_cfg in config.apps:
-        state = next((s for s in states if s["app_id"] == app_cfg.id), None)
-        status = state["status"] if state else "stopped"
-        pid = str(state["pid"]) if state and state.get("pid") else "-"
+        status = app_service.get_app_status(project_id, app_cfg, container_name)
         if not running:
-            status = "container stopped"
-            pid = "-"
-        table.add_row(app_cfg.id, app_cfg.name, str(app_cfg.port), status, pid)
+            status_str = "container stopped"
+            health_str = "-"
+            pid_str = "-"
+        elif status["alive"] is True:
+            status_str = "running"
+            health_str = "[green]alive[/green]"
+            pid_str = str(status["pid"])
+        elif status["alive"] is False:
+            status_str = status["state"]
+            health_str = "[red]dead[/red]"
+            pid_str = str(status["pid"]) if status["pid"] else "-"
+        else:
+            status_str = status["state"]
+            health_str = "-"
+            pid_str = str(status["pid"]) if status["pid"] else "-"
+        table.add_row(app_cfg.id, app_cfg.name, str(app_cfg.port), status_str, health_str, pid_str, status["proxy_url"] or "-")
 
     console.print(table)
 
@@ -58,23 +77,20 @@ def app_start(
     path: str = typer.Option(None, "--path", "-p", help="Project directory"),
 ):
     _, config, project_id, container_name = _get_project_context(path)
-    app_cfg = next((a for a in config.apps if a.id == app_id), None)
-    if not app_cfg:
-        console.print(f"[red]App '{app_id}' not found in project config.[/red]")
-        raise typer.Exit(1)
+    app_cfg = _get_app_config(config, app_id)
 
-    if not docker_service.is_running(container_name):
-        console.print(f"[red]Container '{container_name}' is not running. Start the project first.[/red]")
-        raise typer.Exit(1)
-
-    console.print(f"Starting app '[bold]{app_cfg.name}[/bold]' on port {app_cfg.port}...")
     try:
-        docker_service.exec_run(container_name, app_cfg.command, detach=True)
-        set_app_state(project_id, app_cfg.id, "running", port=app_cfg.port)
-        console.print(f"[green]✓[/green] {app_cfg.name} running at http://localhost:{app_cfg.port}")
-    except Exception as e:
-        console.print(f"[red]Failed to start app:[/red] {e}")
-        set_app_state(project_id, app_cfg.id, "failed", port=app_cfg.port)
+        result = app_service.start_app(project_id, app_cfg, container_name)
+        if result["status"] == "already_running":
+            console.print(f"[yellow]App '{app_cfg.name}' is already running (PID {result['pid']}).[/yellow]")
+            if result.get("proxy_url"):
+                console.print(f"Proxy URL: [blue]{result['proxy_url']}[/blue]")
+            return
+        console.print(f"[green]✓[/green] {app_cfg.name} running at {result['url']} (PID {result['pid']})")
+        if result.get("proxy_url"):
+            console.print(f"Proxy URL: [blue]{result['proxy_url']}[/blue]")
+    except app_service.AppError as e:
+        console.print(f"[red]{e}[/red]")
         raise typer.Exit(1)
 
 
@@ -82,13 +98,11 @@ def app_start(
 def app_open(
     app_id: str = typer.Argument(..., help="App ID (e.g. jupyter)"),
     path: str = typer.Option(None, "--path", "-p", help="Project directory"),
+    proxy: bool = typer.Option(False, "--proxy", help="Open the stable local proxy URL"),
 ):
-    _, config, _, _ = _get_project_context(path)
-    app_cfg = next((a for a in config.apps if a.id == app_id), None)
-    if not app_cfg:
-        console.print(f"[red]App '{app_id}' not found in project config.[/red]")
-        raise typer.Exit(1)
-    url = f"http://localhost:{app_cfg.port}{app_cfg.url_path}"
+    _, config, project_id, _ = _get_project_context(path)
+    app_cfg = _get_app_config(config, app_id)
+    url = app_service.get_proxy_app_url(project_id, app_cfg) if proxy else app_service.get_app_url(app_cfg)
     console.print(f"Opening [blue]{url}[/blue] in browser...")
     webbrowser.open(url)
 
@@ -99,30 +113,12 @@ def app_stop(
     path: str = typer.Option(None, "--path", "-p", help="Project directory"),
 ):
     _, config, project_id, container_name = _get_project_context(path)
-    app_cfg = next((a for a in config.apps if a.id == app_id), None)
-    if not app_cfg:
-        console.print(f"[red]App '{app_id}' not found in project config.[/red]")
-        raise typer.Exit(1)
+    app_cfg = _get_app_config(config, app_id)
 
-    if not docker_service.is_running(container_name):
-        console.print(f"[yellow]Container is not running.[/yellow]")
-        set_app_state(project_id, app_cfg.id, "stopped")
-        return
-
-    state = get_app_state(project_id, app_cfg.id)
-    pid = state.get("pid") if state else None
-
-    console.print(f"Stopping app '[bold]{app_cfg.name}[/bold]'...")
     try:
-        if pid:
-            alive = docker_service.exec_run(container_name, f"kill -0 {pid} 2>/dev/null && echo alive || true")
-            if alive.strip() == "alive":
-                docker_service.exec_run(container_name, f"kill {pid}")
-        first_word = app_cfg.command.split()[0]
-        docker_service.exec_run(container_name, f"pkill -f {shlex.quote(first_word)} || true")
-        set_app_state(project_id, app_cfg.id, "stopped")
+        app_service.stop_app(project_id, app_cfg, container_name)
         console.print(f"[green]✓[/green] {app_cfg.name} stopped")
-    except Exception as e:
+    except app_service.AppError as e:
         console.print(f"[red]Failed to stop app:[/red] {e}")
         raise typer.Exit(1)
 
@@ -132,24 +128,91 @@ def app_logs(
     app_id: str = typer.Argument(..., help="App ID (e.g. jupyter)"),
     path: str = typer.Option(None, "--path", "-p", help="Project directory"),
     tail: int = typer.Option(50, "--tail", "-t", help="Number of lines to show"),
-    follow: bool = typer.Option(False, "--follow", "-f", help="Follow log output"),
 ):
     _, config, _, container_name = _get_project_context(path)
-    app_cfg = next((a for a in config.apps if a.id == app_id), None)
-    if not app_cfg:
-        console.print(f"[red]App '{app_id}' not found in project config.[/red]")
+    app_cfg = _get_app_config(config, app_id)
+
+    try:
+        output = app_service.get_app_logs(container_name, app_cfg.id, tail=tail)
+        console.print(output)
+    except app_service.AppError as e:
+        console.print(f"[red]{e}[/red]")
         raise typer.Exit(1)
 
-    if not docker_service.is_running(container_name):
+
+@app_cmd.command("health")
+def app_health(
+    app_id: str = typer.Argument(..., help="App ID (e.g. jupyter)"),
+    path: str = typer.Option(None, "--path", "-p", help="Project directory"),
+):
+    _, config, project_id, container_name = _get_project_context(path)
+    app_cfg = _get_app_config(config, app_id)
+
+    status = app_service.get_app_status(project_id, app_cfg, container_name)
+    if not status["container_running"]:
         console.print(f"[red]Container '{container_name}' is not running.[/red]")
         raise typer.Exit(1)
 
+    if not status["pid"]:
+        console.print(f"[yellow]No runtime state for '{app_id}'. Start the app first.[/yellow]")
+        return
+
+    if status["alive"]:
+        console.print(f"[green]✓[/green] {app_cfg.name} (PID {status['pid']}) is [green]alive[/green]")
+    else:
+        console.print(f"[red]✗[/red] {app_cfg.name} (PID {status['pid']}) is [red]dead[/red]")
+        if status["state"] == "running":
+            set_app_state(project_id, app_cfg.id, "failed", pid=status["pid"])
+
+
+@app_cmd.command("share")
+def app_share(
+    app_id: str = typer.Argument(..., help="App ID (e.g. jupyter)"),
+    path: str = typer.Option(None, "--path", "-p", help="Project directory"),
+    public_base_url: str = typer.Option("http://localhost:10000", "--base-url", help="Public proxy base URL"),
+    hours: int = typer.Option(48, "--hours", help="Share expiry in hours"),
+):
+    _, config, project_id, _ = _get_project_context(path)
+    app_cfg = _get_app_config(config, app_id)
     try:
-        output = docker_service.exec_run(
-            container_name,
-            f"cat /tmp/cap-{app_id}.log 2>&1 || echo 'No app log file found'",
+        share = app_service.create_share_url(project_id, app_cfg, public_base_url, hours)
+    except app_service.AppError as e:
+        console.print(f"[red]{e}[/red]")
+        raise typer.Exit(1)
+    console.print(f"[green]✓[/green] Share URL: [blue]{share['url']}[/blue]")
+    console.print(f"Expires: {share['expires_at']}")
+
+
+@app_cmd.command("shares")
+def app_shares(
+    app_id: str | None = typer.Argument(None, help="Optional app ID"),
+    path: str = typer.Option(None, "--path", "-p", help="Project directory"),
+):
+    _, _, project_id, _ = _get_project_context(path)
+    shares = app_service.list_share_urls(project_id, app_id=app_id)
+    table = Table(title="App Shares")
+    table.add_column("App", style="cyan")
+    table.add_column("URL")
+    table.add_column("Expires")
+    table.add_column("Expired")
+    table.add_column("Token")
+    for share in shares:
+        table.add_row(
+            share["app_id"],
+            share["url"],
+            share["expires_at"],
+            "yes" if share["expired"] else "no",
+            share["token"],
         )
-        console.print(output)
-    except Exception as e:
-        console.print(f"[red]Failed to get app logs:[/red] {e}")
+    console.print(table)
+
+
+@app_cmd.command("revoke-share")
+def app_revoke_share(
+    token: str = typer.Argument(..., help="Share token"),
+):
+    if app_service.revoke_share_url(token):
+        console.print(f"[green]✓[/green] Revoked share {token}")
+    else:
+        console.print(f"[red]Share not found:[/red] {token}")
         raise typer.Exit(1)

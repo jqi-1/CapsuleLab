@@ -2,6 +2,7 @@ import pytest
 from backend.services import gpu_service
 
 
+@pytest.mark.docker
 def test_docker_gpu_available_returns_bool():
     result = gpu_service.docker_gpu_available()
     assert isinstance(result, bool)

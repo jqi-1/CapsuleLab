@@ -1,8 +1,17 @@
 # Project Spec
 
+## Capsule Contract
+
+A CapsuleLab project is a portable capsule: source code, runtime environment, launchable apps, data/model mounts, secret references, runs, agents, and project knowledge stored around one Git-backed project folder.
+
+The current implementation stores desired state in `.workbench/project.yaml`. The long-term public config should converge on `capsule.yaml` once the migration path is explicit. Until then, docs should name both carefully:
+
+- `.workbench/project.yaml`: current source of truth used by the codebase.
+- `capsule.yaml`: target top-level capsule manifest and schema direction.
+
 ## Standard Project Layout
 
-Each workbench project should look like this:
+Each CapsuleLab project should look like this:
 
 ```txt
 my-project/
@@ -33,6 +42,126 @@ my-project/
   data/
   models/
 ```
+
+## Project Profiles
+
+Profiles change defaults, templates, dashboard emphasis, and validation checks. They are not separate products.
+
+### Research
+
+Research projects prioritize exploration, notebooks, experiments, papers, datasets, models, and reproducibility.
+
+Default layout:
+
+```txt
+project/
+  notebooks/
+  src/
+  data/
+  models/
+  experiments/
+  papers/
+  outputs/
+  reports/
+  capsule.yaml
+```
+
+Recommended defaults:
+
+```yaml
+mode: research
+
+presets:
+  notebook_first: true
+  experiment_tracking: true
+  dataset_mounts: true
+  model_cache: true
+  knowledge_graph: true
+  paper_notes: true
+  reproducibility_checks: true
+```
+
+Expected apps and checks include JupyterLab, TensorBoard, Gradio, Streamlit, MLflow or a lightweight experiment tracker, notebook summaries, dataset notes, model comparisons, run-diff analysis, paper/source graphing, and experiment reports.
+
+### Deployable
+
+Deployable projects prioritize turning local AI/data-science work into a service, app, or containerized package that can run in production-like environments.
+
+Default layout:
+
+```txt
+project/
+  app/
+  src/
+  tests/
+  configs/
+  docker/
+  scripts/
+  data/
+  models/
+  docs/
+  capsule.yaml
+  Dockerfile
+  docker-compose.yml
+```
+
+Recommended defaults:
+
+```yaml
+mode: deployable
+
+presets:
+  api_server: true
+  dockerfile_required: true
+  health_checks: true
+  env_validation: true
+  tests_required: true
+  secrets_scan: true
+  deployment_manifest: true
+  logging_dashboard: true
+```
+
+Expected apps and checks include FastAPI, Gradio, Streamlit, Docker runtime, API tester, health dashboard, runtime/build logs, port management, GPU compatibility, dependency and secret scans, test coverage, and deployment readiness.
+
+### Open Source
+
+Open-source projects prioritize public sharing, contributor experience, reusable examples, package metadata, and release readiness.
+
+Default layout:
+
+```txt
+project/
+  src/
+  tests/
+  docs/
+  examples/
+  scripts/
+  assets/
+  .github/
+  capsule.yaml
+  README.md
+  LICENSE
+  CONTRIBUTING.md
+  CHANGELOG.md
+```
+
+Recommended defaults:
+
+```yaml
+mode: opensource
+
+presets:
+  readme_required: true
+  license_required: true
+  contributing_required: true
+  tests_required: true
+  examples_required: true
+  github_actions: true
+  docs_preview: true
+  package_metadata_check: true
+```
+
+Expected apps and checks include README preview, docs preview, test runner, linter, package checker, Git dashboard, license selector, GitHub templates, example validation, changelog assistance, and agent-generated project explanations.
 
 ## Main Config File
 
@@ -96,6 +225,8 @@ apps:
 |---|---:|---|
 | `name` | yes | Project name |
 | `description` | no | Human-readable project description |
+| `mode` | no | Project profile: `research`, `deployable`, or `opensource` |
+| `presets` | no | Profile-specific booleans that enable default checks, apps, and dashboard affordances |
 | `runtime` | yes | Runtime definition |
 | `mounts` | no | Host-to-container mounts |
 | `environment` | no | Environment variables |
@@ -206,13 +337,18 @@ streamlit-dashboard
 Later templates:
 
 ```txt
-tensorflow-cuda
-rapids
-llm-inference
-computer-vision
-rag-stack
-fastapi-ml-service
-fine-tuning-project
+research-rag
+research-pytorch
+research-model-eval
+research-fine-tuning
+deployable-fastapi
+deployable-gradio
+deployable-rag-api
+deployable-batch-inference
+opensource-python-package
+opensource-typescript-package
+opensource-ai-demo
+opensource-research-release
 ```
 
 Concern: templates should be treated as maintained products. A small set of reliable templates is more valuable than a large list that drifts out of date.
@@ -230,3 +366,4 @@ The workbench should warn when a project has:
 - port conflict
 - uncommitted Git changes
 - missing `.workbench/project.yaml`
+- profile mismatch, such as deployable mode without tests or open-source mode without a license
