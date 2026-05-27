@@ -1,6 +1,7 @@
 from fastapi import HTTPException
 
 from backend.api import projects
+from backend.models.project import ProjectConfig, RuntimeConfig
 
 
 def test_import_project_endpoint_uses_git_import(monkeypatch):
@@ -42,8 +43,8 @@ def test_import_project_endpoint_maps_missing_path_to_404(monkeypatch):
 def test_delete_project_removes_existing_inventory_row(monkeypatch):
     removed = []
 
-    monkeypatch.setattr(projects, "get_project", lambda project_id: {"id": project_id, "name": "demo", "path": "/tmp/demo"})
-    monkeypatch.setattr(projects, "remove_project", lambda project_id: removed.append(project_id))
+    monkeypatch.setattr("backend.db.repositories.projects.get", lambda project_id: {"id": project_id, "name": "demo", "path": "/tmp/demo"})
+    monkeypatch.setattr("backend.db.repositories.projects.remove", lambda project_id: removed.append(project_id))
 
     result = projects.delete_project("cap-demo")
 
@@ -52,7 +53,7 @@ def test_delete_project_removes_existing_inventory_row(monkeypatch):
 
 
 def test_delete_project_404s_for_missing_inventory_row(monkeypatch):
-    monkeypatch.setattr(projects, "get_project", lambda project_id: None)
+    monkeypatch.setattr("backend.db.repositories.projects.get", lambda project_id: None)
 
     try:
         projects.delete_project("cap-missing")
@@ -65,7 +66,7 @@ def test_delete_project_404s_for_missing_inventory_row(monkeypatch):
 def test_setup_ide_endpoint_uses_project_path(monkeypatch):
     calls = {}
 
-    monkeypatch.setattr(projects, "get_project", lambda project_id: {"id": project_id, "name": "demo", "path": "/tmp/demo"})
+    monkeypatch.setattr("backend.db.repositories.projects.get", lambda project_id: {"id": project_id, "name": "demo", "path": "/tmp/demo"})
 
     def fake_setup(path, ide, project_name=None):
         calls.update({"path": path, "ide": ide, "project_name": project_name})
@@ -80,7 +81,7 @@ def test_setup_ide_endpoint_uses_project_path(monkeypatch):
 
 
 def test_ide_instructions_endpoint_maps_unknown_ide(monkeypatch):
-    monkeypatch.setattr(projects, "get_project", lambda project_id: {"id": project_id, "name": "demo", "path": "/tmp/demo"})
+    monkeypatch.setattr("backend.db.repositories.projects.get", lambda project_id: {"id": project_id, "name": "demo", "path": "/tmp/demo"})
 
     def fake_instructions(*args, **kwargs):
         raise ValueError("Unsupported IDE")
@@ -93,3 +94,79 @@ def test_ide_instructions_endpoint_maps_unknown_ide(monkeypatch):
         assert exc.status_code == 400
     else:
         raise AssertionError("Expected HTTPException")
+
+
+def test_project_status_returns_full_status(monkeypatch):
+    monkeypatch.setattr("backend.db.repositories.projects.get", lambda project_id: {"id": project_id, "name": "demo", "path": "/tmp/demo"})
+    monkeypatch.setattr(projects.project_service, "load_config", lambda path: ProjectConfig(name="demo", runtime=RuntimeConfig(image="demo:dev")))
+    monkeypatch.setattr(projects.project_service, "validate", lambda config, path: [])
+    monkeypatch.setattr(projects.docker_service, "check_docker_status", lambda: type("DockerStatus", (), {
+        "available": False,
+        "binary_found": False,
+        "daemon_running": False,
+        "socket_accessible": False,
+        "version": "",
+        "error": "offline",
+    })())
+    monkeypatch.setattr(projects.gpu_service, "get_gpu_info", lambda: type("GpuInfo", (), {"available": False, "name": "", "vram_mb": 0})())
+    monkeypatch.setattr(projects.git_service, "git_status", lambda path: {"is_repo": False, "branch": "", "remote": "", "dirty_files": 0, "lfs_available": False})
+    monkeypatch.setattr(projects.resource_service, "project_resources", lambda path: {
+        "disk": {"path": path, "total_bytes": 0, "used_bytes": 0, "free_bytes": 0, "free_percent": 0},
+        "gpu": {"available": False, "gpus": []},
+    })
+    monkeypatch.setattr(projects.compose_service, "status", lambda path: {"detected": False})
+    monkeypatch.setattr("backend.db.repositories.builds.get_metadata", lambda project_id: None)
+    monkeypatch.setattr(projects.secrets_service, "list_secret_presence", lambda project_id: [])
+    monkeypatch.setattr(projects.secrets_service, "missing_required_secrets", lambda project_id, config: [])
+
+    result = projects.project_status("cap-demo")
+
+    assert result["project_id"] == "cap-demo"
+    assert result["name"] == "demo"
+    assert "project" in result
+    assert "system" in result
+    assert result["compose"] == {"detected": False}
+
+
+def test_project_environment_endpoint_uses_project_path(monkeypatch):
+    monkeypatch.setattr("backend.db.repositories.projects.get", lambda project_id: {"id": project_id, "name": "demo", "path": "/tmp/demo"})
+    monkeypatch.setattr(projects.environment_service, "describe", lambda path: {"path": path, "dependencies": [], "environment": {}})
+
+    result = projects.project_environment("cap-demo")
+
+    assert result["path"] == "/tmp/demo"
+
+
+def test_add_project_dependency_endpoint_maps_validation_error(monkeypatch):
+    monkeypatch.setattr("backend.db.repositories.projects.get", lambda project_id: {"id": project_id, "name": "demo", "path": "/tmp/demo"})
+
+    def fake_add(*args, **kwargs):
+        raise ValueError("bad dependency")
+
+    monkeypatch.setattr(projects.environment_service, "add_dependency", fake_add)
+
+    try:
+        projects.add_project_dependency("cap-demo", projects.AddDependencyRequest(dependency=""))
+    except HTTPException as exc:
+        assert exc.status_code == 400
+    else:
+        raise AssertionError("Expected HTTPException")
+
+
+def test_set_project_environment_variable_endpoint(monkeypatch):
+    calls = {}
+    monkeypatch.setattr("backend.db.repositories.projects.get", lambda project_id: {"id": project_id, "name": "demo", "path": "/tmp/demo"})
+
+    def fake_set(path, name, value):
+        calls.update({"path": path, "name": name, "value": value})
+        return {"environment": {name: value}}
+
+    monkeypatch.setattr(projects.environment_service, "set_environment_variable", fake_set)
+
+    result = projects.set_project_environment_variable(
+        "cap-demo",
+        projects.EnvironmentVariableRequest(name="API_URL", value="https://example.test"),
+    )
+
+    assert result["environment"] == {"API_URL": "https://example.test"}
+    assert calls == {"path": "/tmp/demo", "name": "API_URL", "value": "https://example.test"}

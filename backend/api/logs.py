@@ -1,16 +1,15 @@
 from fastapi import APIRouter, HTTPException, Query
 from backend.services import docker_service, project_service, app_service
-from backend.db.sqlite import get_project
+from backend.db.repositories import projects
 
 router = APIRouter()
 
 
-@router.get("/logs")
 def get_project_logs(
     project_id: str,
     tail: int = Query(100, ge=0),
 ):
-    row = get_project(project_id)
+    row = projects.get(project_id)
     if not row:
         raise HTTPException(404, "Project not found")
     config = project_service.load_config(row["path"])
@@ -30,7 +29,7 @@ def get_app_logs(
     app_id: str,
     tail: int = Query(50, ge=0),
 ):
-    row = get_project(project_id)
+    row = projects.get(project_id)
     if not row:
         raise HTTPException(404, "Project not found")
     config = project_service.load_config(row["path"])

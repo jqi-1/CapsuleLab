@@ -7,5 +7,7 @@ Requires-Dist: rich>=13.7.0
 Requires-Dist: pyyaml>=6.0
 Requires-Dist: pydantic>=2.5.0
 Requires-Dist: pydantic-settings>=2.1.0
+Requires-Dist: fastapi>=0.109.0
+Requires-Dist: uvicorn>=0.27.0
 Dynamic: requires-dist
 Dynamic: requires-python

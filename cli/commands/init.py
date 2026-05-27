@@ -4,7 +4,8 @@ from pathlib import Path
 from rich.console import Console
 from rich.table import Table
 from backend.services import project_service, template_service
-from backend.db.sqlite import init_db, register_project
+from backend.db.sqlite import init_db
+from backend.db.repositories import projects
 
 console = Console()
 TEMPLATES_DIR = Path(__file__).resolve().parent.parent.parent / "templates"
@@ -91,7 +92,7 @@ def init(
 
     init_db()
     project_id = project_service.get_project_id(name)
-    register_project(project_id, name, dest)
+    projects.register(project_id, name, dest)
 
     console.print(f"[green]✓[/green] Project [bold]{name}[/bold] created at {dest}")
     console.print(f"  [dim]cd {dest}[/dim]")

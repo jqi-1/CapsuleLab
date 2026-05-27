@@ -17,6 +17,8 @@ from cli.commands.shell import shell as shell_cmd, exec_cmd, attach as attach_cm
 from cli.commands.profile import profile as profile_cmd
 from cli.commands.graph import graph as graph_cmd
 from cli.commands.registry import registry_cmd
+from cli.commands.metadata import metadata_cmd
+from cli.commands.settings import settings_cmd
 
 cli = typer.Typer(
     name="cap",
@@ -50,6 +52,8 @@ cli.add_typer(package_cmd, name="package")
 cli.command(name="profile")(profile_cmd)
 cli.command(name="graph")(graph_cmd)
 cli.add_typer(registry_cmd, name="registry")
+cli.add_typer(metadata_cmd, name="metadata")
+cli.add_typer(settings_cmd, name="settings")
 
 if __name__ == "__main__":
     cli()

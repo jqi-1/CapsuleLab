@@ -2,7 +2,7 @@ import typer
 from rich.console import Console
 from backend.services import docker_service, project_service, ssh_service
 from backend.services.docker_service import parse_image_tag
-from backend.db.sqlite import get_location_by_name, set_build_metadata, add_build_log
+from backend.db.repositories import builds, locations
 
 console = Console()
 
@@ -27,7 +27,7 @@ def build(
     image_name, tag = parse_image_tag(image)
 
     if location:
-        loc = get_location_by_name(location)
+        loc = locations.get_by_name(location)
         if not loc:
             console.print(f"[red]Location '{location}' not found.[/red]")
             raise typer.Exit(1)
@@ -56,15 +56,15 @@ def build(
 
     try:
         result, build_logs = docker_service.build_with_logs(project_path, config.runtime.dockerfile, image_name, tag)
-        add_build_log(project_id, result, "success", build_logs)
+        builds.add_log(project_id, result, "success", build_logs)
         try:
             image_info = docker_service.inspect_image(result)
-            set_build_metadata(project_id, result, image_id=image_info.get("Id"), digest=",".join(image_info.get("RepoDigests", []) or []))
+            builds.set_metadata(project_id, result, image_id=image_info.get("Id"), digest=",".join(image_info.get("RepoDigests", []) or []))
         except Exception:
-            set_build_metadata(project_id, result)
+            builds.set_metadata(project_id, result)
         console.print(f"[green]✓[/green] Image built: {result}")
     except docker_service.DockerError as e:
-        add_build_log(project_id, image, "failed", e.stderr or str(e))
+        builds.add_log(project_id, image, "failed", e.stderr or str(e))
         console.print(f"[red]Build failed:[/red] {e.message}")
         if e.stderr:
             console.print(f"\n[bold]Build output:[/bold]")
@@ -73,6 +73,6 @@ def build(
             console.print(f"\n[yellow]Suggestion:[/yellow] {e.suggestion}")
         raise typer.Exit(1)
     except Exception as e:
-        add_build_log(project_id, image, "failed", str(e))
+        builds.add_log(project_id, image, "failed", str(e))
         console.print(f"[red]Build failed:[/red] {e}")
         raise typer.Exit(1)

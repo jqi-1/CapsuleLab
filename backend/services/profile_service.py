@@ -98,4 +98,75 @@ def check_profile_readiness(config: ProjectConfig, project_path: str) -> list[di
                 "severity": "info",
             })
 
+    if config.mode == ProjectMode.research:
+        checks.extend(_research_checks(proj, config))
+    elif config.mode == ProjectMode.deployable:
+        checks.extend(_deployable_checks(proj, config))
+    elif config.mode == ProjectMode.opensource:
+        checks.extend(_opensource_checks(proj))
+
+    return checks
+
+
+def _check(label: str, ok: bool, detail: str, severity: str = "error") -> dict:
+    return {"label": label, "ok": ok, "detail": detail, "severity": severity}
+
+
+def _any_exists(project_path, candidates: list[str]) -> tuple[bool, str]:
+    for candidate in candidates:
+        if (project_path / candidate).exists():
+            return True, candidate
+    return False, ", ".join(candidates)
+
+
+def _research_checks(proj, config: ProjectConfig) -> list[dict]:
+    checks: list[dict] = []
+    notebooks = list((proj / "notebooks").glob("*.ipynb")) if (proj / "notebooks").exists() else []
+    checks.append(_check("Research notebooks", bool(notebooks), f"{len(notebooks)} notebook(s)" if notebooks else "Missing notebooks/*.ipynb"))
+
+    has_dataset_intent = bool(config.datasets) or (proj / "data").exists()
+    checks.append(_check("Research dataset workspace", has_dataset_intent, "Dataset intent found" if has_dataset_intent else "Add datasets or data/"))
+
+    has_model_cache = any("huggingface" in c.source or "torch" in c.source for c in config.caches) or (proj / "models").exists()
+    checks.append(_check("Research model cache", has_model_cache, "Model/cache path found" if has_model_cache else "Add cache mounts or models/"))
+
+    for label, candidates in [
+        ("Research experiment notes", ["experiments/evaluation_runs.md", "experiments"]),
+        ("Research source notes", ["papers/sources.md", "sources/README.md", "papers"]),
+        ("Research graph context", ["graph/context.md", "context/graph.md", "graph"]),
+        ("Research reproducibility report", ["reports/reproducibility.md", "outputs/README.md", "reports"]),
+    ]:
+        ok, detail = _any_exists(proj, candidates)
+        checks.append(_check(label, ok, f"Found {detail}" if ok else f"Missing one of: {detail}"))
+    return checks
+
+
+def _deployable_checks(proj, config: ProjectConfig) -> list[dict]:
+    checks: list[dict] = []
+    has_healthcheck = any(app.healthcheck for app in config.apps)
+    checks.append(_check("Deployable app healthcheck", has_healthcheck, "Healthcheck configured" if has_healthcheck else "Add app healthcheck path"))
+
+    for label, candidates in [
+        ("Deployable env example", ["configs/env.example", ".env.example"]),
+        ("Deployable deployment manifest", ["deploy/deployment.yaml", "deploy/manifest.yaml", "deployment.yaml"]),
+        ("Deployable API tester", ["scripts/check_api.py", "tests/test_api_contract.py"]),
+        ("Deployable secrets scan", ["scripts/secrets_scan.sh", ".github/workflows/secrets.yml"]),
+        ("Deployable logging docs", ["docs/logging.md", "docs/api.md"]),
+    ]:
+        ok, detail = _any_exists(proj, candidates)
+        checks.append(_check(label, ok, f"Found {detail}" if ok else f"Missing one of: {detail}"))
+    return checks
+
+
+def _opensource_checks(proj) -> list[dict]:
+    checks: list[dict] = []
+    for label, candidates in [
+        ("Open-source docs", ["docs/index.md", "docs/README.md"]),
+        ("Open-source CI", [".github/workflows/ci.yml", ".github/workflows/tests.yml"]),
+        ("Open-source changelog", ["CHANGELOG.md"]),
+        ("Open-source release checklist", ["RELEASE.md", "docs/release.md"]),
+        ("Open-source package metadata", ["pyproject.toml", "setup.py"]),
+    ]:
+        ok, detail = _any_exists(proj, candidates)
+        checks.append(_check(label, ok, f"Found {detail}" if ok else f"Missing one of: {detail}"))
     return checks

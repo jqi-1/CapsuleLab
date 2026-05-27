@@ -1,4 +1,5 @@
 import json
+import re
 import shutil
 import subprocess
 from dataclasses import dataclass
@@ -113,6 +114,8 @@ def ps(project_path: str) -> list[dict]:
                 "name": item.get("Name") or item.get("Name".lower()) or item.get("Service") or "",
                 "service": item.get("Service") or item.get("Service".lower()) or "",
                 "state": item.get("State") or item.get("State".lower()) or "",
+                "health": item.get("Health") or item.get("Health".lower()) or "",
+                "exit_code": item.get("ExitCode") or item.get("ExitCode".lower()),
                 "ports": item.get("Ports") or item.get("Publishers") or "",
             }
             for item in data
@@ -195,6 +198,61 @@ def validate(project_path: str) -> list[dict]:
     return findings
 
 
+def service_statuses(definitions: list[dict], services: list[dict]) -> list[dict]:
+    runtime_by_service = {service.get("service") or service.get("name"): service for service in services}
+    statuses = []
+    for definition in definitions:
+        runtime = runtime_by_service.get(definition["service"], {})
+        state = str(runtime.get("state") or "not_created").lower()
+        health = str(runtime.get("health") or "").lower()
+        if not health:
+            if state in {"running", "up"} and definition.get("healthcheck"):
+                health = "starting"
+            elif state in {"running", "up"}:
+                health = "unknown"
+            elif state in {"exited", "dead"}:
+                health = "stopped"
+            else:
+                health = "not_created"
+        ok = state in {"running", "up"} and health not in {"unhealthy", "stopped"}
+        statuses.append({
+            "service": definition["service"],
+            "container": runtime.get("name", ""),
+            "state": state,
+            "health": health,
+            "ok": ok,
+            "profiles": definition["profiles"],
+            "depends_on": definition["depends_on"],
+            "ports": definition["ports"],
+            "published_ports": _published_ports(definition["ports"], runtime.get("ports")),
+            "urls": definition["urls"],
+            "web_access": definition["web_access"],
+            "gpu": definition["gpu"],
+            "exit_code": runtime.get("exit_code"),
+        })
+    for runtime in services:
+        service_name = runtime.get("service") or runtime.get("name")
+        if service_name and not any(status["service"] == service_name for status in statuses):
+            state = str(runtime.get("state") or "unknown").lower()
+            health = str(runtime.get("health") or "unknown").lower()
+            statuses.append({
+                "service": service_name,
+                "container": runtime.get("name", ""),
+                "state": state,
+                "health": health,
+                "ok": state in {"running", "up"} and health != "unhealthy",
+                "profiles": [],
+                "depends_on": [],
+                "ports": [],
+                "published_ports": _published_ports([], runtime.get("ports")),
+                "urls": [],
+                "web_access": False,
+                "gpu": False,
+                "exit_code": runtime.get("exit_code"),
+            })
+    return statuses
+
+
 def status(project_path: str) -> dict:
     detection = detect(project_path)
     services: list[dict] = []
@@ -222,8 +280,15 @@ def status(project_path: str) -> dict:
         "detected": detection.compose_file is not None,
         "services": services,
         "definitions": definitions,
+        "service_statuses": service_statuses(definitions, services),
         "profiles": found_profiles,
         "findings": findings,
+        "runtime": {
+            "kind": "compose",
+            "ok": bool(definitions) and all(service["ok"] for service in service_statuses(definitions, services)) if services else False,
+            "service_count": len(definitions),
+            "running_count": len([service for service in services if str(service.get("state", "")).lower() in {"running", "up"}]),
+        },
         "error": error,
     }
 
@@ -261,6 +326,26 @@ def _service_urls(ports: list[dict]) -> list[str]:
         if published:
             urls.append(f"http://localhost:{published}")
     return urls
+
+
+def _published_ports(defined_ports: list[dict], runtime_ports: Any) -> list[int]:
+    ports = [port.get("published") for port in defined_ports if port.get("published")]
+    if isinstance(runtime_ports, list):
+        for port in runtime_ports:
+            if isinstance(port, dict):
+                published = _int_or_none(port.get("PublishedPort") or port.get("published"))
+                if published:
+                    ports.append(published)
+    elif isinstance(runtime_ports, str):
+        for match in re.findall(r"(?:(?:0\.0\.0\.0|127\.0\.0\.1|localhost|\[::\]):)?(\d+)->", runtime_ports):
+            parsed = _int_or_none(match)
+            if parsed:
+                ports.append(parsed)
+    seen = []
+    for port in ports:
+        if port not in seen:
+            seen.append(port)
+    return seen
 
 
 def _int_or_none(value: Any) -> int | None:

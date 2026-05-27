@@ -3,7 +3,7 @@ import webbrowser
 from rich.console import Console
 from rich.table import Table
 from backend.services import docker_service, project_service, app_service
-from backend.db.sqlite import set_app_state
+from backend.db.repositories import apps
 
 console = Console()
 app_cmd = typer.Typer(name="app", help="Manage apps inside a project container", no_args_is_help=True)
@@ -162,7 +162,7 @@ def app_health(
     else:
         console.print(f"[red]✗[/red] {app_cfg.name} (PID {status['pid']}) is [red]dead[/red]")
         if status["state"] == "running":
-            set_app_state(project_id, app_cfg.id, "failed", pid=status["pid"])
+            apps.set_state(project_id, app_cfg.id, "failed", pid=status["pid"])
 
 
 @app_cmd.command("share")

@@ -2,13 +2,14 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from pathlib import Path
 from typing import Optional
-from backend.services import project_service, docker_service, gpu_service, app_service, compose_service, git_service, resource_service, secrets_service, build_assistant_service, ide_service
-from backend.services.docker_service import parse_image_tag
-from backend.db.sqlite import (
-    list_projects, get_project, register_project, remove_project,
-    clear_app_states, set_build_metadata, get_build_metadata,
-    add_build_log, get_build_logs,
+
+from backend.services import (
+    project_service, docker_service, gpu_service, app_service,
+    compose_service, git_service, resource_service, secrets_service,
+    build_assistant_service, ide_service, environment_service, runtime_service,
 )
+from backend.services.docker_service import parse_image_tag
+from backend.db.repositories import projects, builds, apps
 
 router = APIRouter()
 
@@ -31,15 +32,31 @@ class IdeSetupRequest(BaseModel):
     ide: str
 
 
+class AddDependencyRequest(BaseModel):
+    dependency: str
+
+
+class EnvironmentVariableRequest(BaseModel):
+    name: str
+    value: str
+
+
+def _get_project(project_id: str) -> dict:
+    row = projects.get(project_id)
+    if not row:
+        raise HTTPException(404, "Project not found")
+    return row
+
+
 @router.get("")
 def list_all_projects():
-    rows = list_projects()
+    rows = projects.list()
     enriched = []
     for row in rows:
         try:
             config = project_service.load_config(row["path"])
-            container_name = project_service.get_container_name(config.name)
-            running = docker_service.is_running(container_name)
+            runtime = runtime_service.RuntimeManager(runtime_service.LocalDockerAdapter())
+            running = runtime.status(project_service.get_container_name(config.name)).running
         except Exception:
             running = False
         enriched.append({**row, "container_running": running})
@@ -73,7 +90,7 @@ def create_project(req: CreateProjectRequest):
                 yaml.dump(cfg_data, f, default_flow_style=False)
 
     project_id = project_service.get_project_id(req.name)
-    register_project(project_id, req.name, dest)
+    projects.register(project_id, req.name, dest)
     return {"project_id": project_id, "name": req.name, "path": dest, "mode": req.mode}
 
 
@@ -91,13 +108,12 @@ def import_project(req: ImportProjectRequest):
 
 @router.get("/{project_id}")
 def get_project_by_id(project_id: str):
-    row = get_project(project_id)
-    if not row:
-        raise HTTPException(404, "Project not found")
+    row = _get_project(project_id)
     config = project_service.load_config(row["path"])
     container_name = project_service.get_container_name(config.name)
     try:
-        running = docker_service.is_running(container_name)
+        runtime = runtime_service.RuntimeManager(runtime_service.LocalDockerAdapter())
+        running = runtime.status(container_name).running
     except Exception:
         running = False
     return {
@@ -109,18 +125,14 @@ def get_project_by_id(project_id: str):
 
 @router.delete("/{project_id}")
 def delete_project(project_id: str):
-    row = get_project(project_id)
-    if not row:
-        raise HTTPException(404, "Project not found")
-    remove_project(project_id)
+    _get_project(project_id)
+    projects.remove(project_id)
     return {"status": "removed", "project_id": project_id}
 
 
 @router.post("/{project_id}/build")
 def build_project(project_id: str):
-    row = get_project(project_id)
-    if not row:
-        raise HTTPException(404, "Project not found")
+    row = _get_project(project_id)
     project_path = row["path"]
     config = project_service.load_config(project_path)
     warnings = project_service.validate(config, project_path)
@@ -130,123 +142,61 @@ def build_project(project_id: str):
     image_name, tag = parse_image_tag(image)
     try:
         result, build_logs = docker_service.build_with_logs(project_path, config.runtime.dockerfile, image_name, tag)
-        add_build_log(project_id, result, "success", build_logs)
+        builds.add_log(project_id, result, "success", build_logs)
         try:
             image_info = docker_service.inspect_image(result)
-            set_build_metadata(project_id, result, image_id=image_info.get("Id"), digest=",".join(image_info.get("RepoDigests", []) or []))
+            builds.set_metadata(project_id, result, image_id=image_info.get("Id"), digest=",".join(image_info.get("RepoDigests", []) or []))
         except Exception:
-            set_build_metadata(project_id, result)
+            builds.set_metadata(project_id, result)
         return {"status": "built", "image": result, "warnings": warnings, "build_logs": build_logs[:5000]}
     except docker_service.DockerError as e:
-        add_build_log(project_id, image, "failed", e.stderr or str(e))
+        builds.add_log(project_id, image, "failed", e.stderr or str(e))
         raise HTTPException(500, {"error_code": e.error_code.value, "message": str(e), "detail": e.detail, "suggestion": e.suggestion, "logs": e.stderr or ""})
     except Exception as e:
-        add_build_log(project_id, image, "failed", str(e))
+        builds.add_log(project_id, image, "failed", str(e))
         raise HTTPException(500, {"error_code": "build_failed", "message": str(e), "detail": "", "suggestion": "Check the Dockerfile and project configuration."})
 
 
 @router.post("/{project_id}/start")
 def start_project(project_id: str):
-    row = get_project(project_id)
-    if not row:
-        raise HTTPException(404, "Project not found")
+    row = _get_project(project_id)
     project_path = row["path"]
     config = project_service.load_config(project_path)
     container_name = project_service.get_container_name(config.name)
-
-    dkr = docker_service.check_docker_status()
-    if not dkr.available:
-        raise HTTPException(503, dkr.error)
-
-    if docker_service.is_running(container_name):
-        return {"status": "already_running", "container": container_name}
-
-    if docker_service.container_exists(container_name):
-        info = docker_service.inspect(container_name)
-        owned = False
-        if info:
-            labels = info.get("Config", {}).get("Labels", {}) or {}
-            owned = labels.get("com.capsulelab.project") == config.name
-        if not owned:
-            raise HTTPException(409,
-                f"Container '{container_name}' exists but is not owned by this project."
-                f" Remove it manually: docker rm -f {container_name}")
-        docker_service.stop(container_name)
-
-    clear_app_states(project_id)
-    image = config.runtime.image or f"{config.name}:dev"
-    mounts = []
-    for m in config.mounts:
-        source = str(Path(project_path) / m.source) if not Path(m.source).is_absolute() else m.source
-        mounts.append((source, m.target, m.read_only))
-    for c in config.caches:
-        c_source = str(Path(c.source).expanduser())
-        if Path(c_source).exists():
-            mounts.append((c_source, c.target, True))
-    for dataset in config.datasets:
-        d_source = str(Path(project_path) / dataset.path) if not Path(dataset.path).is_absolute() else dataset.path
-        if Path(d_source).exists():
-            mounts.append((d_source, dataset.target, dataset.read_only))
-    ports = [(a.port, a.port) for a in config.apps if a.port is not None] if config.apps else None
-
-    if ports:
-        used_ports = docker_service.get_used_ports()
-        conflicts = [str(p[0]) for p in ports if p[0] in used_ports]
-        if conflicts:
-            raise HTTPException(409,
-                f"Port conflict: port(s) {', '.join(conflicts)} already in use."
-                f" Stop the other container or change the port mapping.")
-
-    gpu = bool(config.runtime.gpu and gpu_service.detect_nvidia_smi())
     try:
-        docker_service.run(
-            container_name=container_name,
-            image_name=image,
-            mounts=mounts,
-            env_vars=config.environment or None,
-            gpu=gpu,
-            ports=ports,
-            labels={"com.capsulelab.project": config.name},
-        )
-        return {"status": "started", "container": container_name}
+        runtime = runtime_service.RuntimeManager(runtime_service.LocalDockerAdapter())
+        result = runtime.start(project_path, config, container_name)
+        if result.status == "started":
+            apps.clear_states(project_id)
+        return {"status": result.status, "container": result.container}
+    except runtime_service.RuntimeUnavailable as e:
+        raise HTTPException(503, str(e))
+    except runtime_service.RuntimeConflict as e:
+        raise HTTPException(409, str(e))
     except Exception as e:
         raise HTTPException(500, str(e))
 
 
 @router.post("/{project_id}/stop")
 def stop_project(project_id: str):
-    row = get_project(project_id)
-    if not row:
-        raise HTTPException(404, "Project not found")
+    row = _get_project(project_id)
     config = project_service.load_config(row["path"])
     container_name = project_service.get_container_name(config.name)
-
-    dkr = docker_service.check_docker_status()
-    if not dkr.available:
-        raise HTTPException(503, dkr.error)
-
-    if not docker_service.container_exists(container_name):
-        return {"status": "not_found", "container": container_name}
-
-    info = docker_service.inspect(container_name)
-    if info:
-        labels = info.get("Config", {}).get("Labels", {}) or {}
-        owned = labels.get("com.capsulelab.project") == config.name
-        if not owned:
-            raise HTTPException(409,
-                f"Container '{container_name}' is not owned by this project."
-                f" Refusing to stop.")
-
     try:
-        docker_service.stop(container_name)
-        return {"status": "stopped", "container": container_name}
+        runtime = runtime_service.RuntimeManager(runtime_service.LocalDockerAdapter())
+        result = runtime.stop(config, container_name)
+        return {"status": result.status, "container": result.container}
+    except runtime_service.RuntimeUnavailable as e:
+        raise HTTPException(503, str(e))
+    except runtime_service.RuntimeConflict as e:
+        raise HTTPException(409, str(e))
     except Exception as e:
         raise HTTPException(500, str(e))
 
 
 @router.get("/{project_id}/apps")
 def list_project_apps(project_id: str):
-    row = get_project(project_id)
+    row = projects.get(project_id)
     if not row:
         raise HTTPException(404, "Project not found")
     config = project_service.load_config(row["path"])
@@ -255,10 +205,8 @@ def list_project_apps(project_id: str):
 
 @router.get("/{project_id}/build/logs")
 def build_logs(project_id: str, limit: int = 5):
-    row = get_project(project_id)
-    if not row:
-        raise HTTPException(404, "Project not found")
-    return get_build_logs(project_id, limit=limit)
+    _get_project(project_id)
+    return builds.get_logs(project_id, limit=limit)
 
 
 @router.get("/{project_id}/build/assistant")
@@ -279,9 +227,7 @@ def apply_build_assistant(project_id: str):
 
 @router.post("/{project_id}/ide/setup")
 def setup_ide(project_id: str, req: IdeSetupRequest):
-    row = get_project(project_id)
-    if not row:
-        raise HTTPException(404, "Project not found")
+    row = _get_project(project_id)
     try:
         return ide_service.setup_ide(row["path"], req.ide, project_name=row["name"])
     except ValueError as e:
@@ -290,36 +236,40 @@ def setup_ide(project_id: str, req: IdeSetupRequest):
 
 @router.get("/{project_id}/ide/{ide}/instructions")
 def ide_instructions(project_id: str, ide: str):
-    row = get_project(project_id)
-    if not row:
-        raise HTTPException(404, "Project not found")
+    row = _get_project(project_id)
     try:
         return ide_service.attach_instructions(row["path"], ide, project_name=row["name"])
     except ValueError as e:
         raise HTTPException(400, str(e))
 
 
+def _resource_slice(resources: dict) -> dict:
+    keys = ["cpu_percent", "memory_used_mb", "memory_total_mb", "memory_percent",
+            "disk_used_gb", "disk_total_gb", "disk_percent"]
+    return {k: resources.get(k) for k in keys}
+
+
 @router.get("/{project_id}/status")
 def project_status(project_id: str):
-    row = get_project(project_id)
-    if not row:
-        raise HTTPException(404, "Project not found")
+    row = _get_project(project_id)
     config = project_service.load_config(row["path"])
     container_name = project_service.get_container_name(config.name)
-    docker_status = docker_service.check_docker_status()
-    running = False
-    if docker_status.available:
-        running = docker_service.is_running(container_name)
+    runtime = runtime_service.RuntimeManager(runtime_service.LocalDockerAdapter())
+    runtime_status = runtime.status(container_name)
+    docker_status = runtime_status.health
+    running = runtime_status.running
     gpu_info = gpu_service.get_gpu_info()
     warnings = project_service.validate(config, row["path"])
     app_statuses = [
         app_service.get_app_status(project_id, app_cfg, container_name)
         for app_cfg in config.apps
     ]
+
     try:
         git_status = git_service.git_status(row["path"])
     except Exception:
         git_status = {"is_repo": False, "branch": "", "remote": "", "dirty_files": 0, "lfs_available": False}
+
     try:
         resources = resource_service.project_resources(row["path"])
     except Exception:
@@ -328,20 +278,8 @@ def project_status(project_id: str):
             "gpu": {"available": False, "gpus": []},
         }
 
-    # Extract system and project resources for extended monitoring
-    system_resources = {
-        "cpu_percent": resources.get("cpu_percent"),
-        "memory_used_mb": resources.get("memory_used_mb"),
-        "memory_total_mb": resources.get("memory_total_mb"),
-        "memory_percent": resources.get("memory_percent"),
-        "disk_used_gb": resources.get("disk_used_gb"),
-        "disk_total_gb": resources.get("disk_total_gb"),
-        "disk_percent": resources.get("disk_percent"),
-    }
-
-    # For now, project resources are the same as system resources since we don't have container-specific monitoring yet
-    # In a full implementation, this would monitor resources within the project container
-    project_resources = system_resources.copy()
+    system_resources = _resource_slice(resources)
+    project_resources = _resource_slice(resources)
 
     return {
         "name": config.name,
@@ -365,7 +303,7 @@ def project_status(project_id: str):
         },
         "apps": app_statuses,
         "compose": compose_service.status(row["path"]),
-        "build": get_build_metadata(project_id),
+        "build": builds.get_metadata(project_id),
         "git": git_status,
         "resources": resources,
         "secrets": {
@@ -373,7 +311,42 @@ def project_status(project_id: str):
             "present": secrets_service.list_secret_presence(project_id),
             "missing": secrets_service.missing_required_secrets(project_id, config),
         },
-        # Extended resource monitoring fields
         "system": system_resources,
         "project": project_resources,
     }
+
+
+@router.get("/{project_id}/environment")
+def project_environment(project_id: str):
+    row = _get_project(project_id)
+    try:
+        return environment_service.describe(row["path"])
+    except FileNotFoundError as e:
+        raise HTTPException(404, str(e))
+
+
+@router.post("/{project_id}/environment/dependencies")
+def add_project_dependency(project_id: str, req: AddDependencyRequest):
+    row = _get_project(project_id)
+    try:
+        return environment_service.add_dependency(row["path"], req.dependency)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
+
+@router.post("/{project_id}/environment/variables")
+def set_project_environment_variable(project_id: str, req: EnvironmentVariableRequest):
+    row = _get_project(project_id)
+    try:
+        return environment_service.set_environment_variable(row["path"], req.name, req.value)
+    except (FileNotFoundError, ValueError) as e:
+        raise HTTPException(400, str(e))
+
+
+@router.delete("/{project_id}/environment/variables/{name}")
+def remove_project_environment_variable(project_id: str, name: str):
+    row = _get_project(project_id)
+    try:
+        return environment_service.remove_environment_variable(row["path"], name)
+    except FileNotFoundError as e:
+        raise HTTPException(400, str(e))

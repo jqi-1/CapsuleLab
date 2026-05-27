@@ -1,13 +1,13 @@
 from fastapi import APIRouter, HTTPException, Query
 from typing import List, Optional, Dict, Any
-from backend.db.sqlite import get_project
+from backend.db.repositories import projects
 from backend.services import resource_service
 
 router = APIRouter()
 
 
 def _project(project_id: str):
-    row = get_project(project_id)
+    row = projects.get(project_id)
     if not row:
         raise HTTPException(404, "Project not found")
     return row

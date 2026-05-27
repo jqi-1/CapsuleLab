@@ -27,8 +27,8 @@ def _write_project(path, config=None):
 
 
 def _stub_external_checks(monkeypatch):
-    monkeypatch.setattr(doctor_service, "list_projects", lambda: [])
-    monkeypatch.setattr(doctor_service, "get_build_metadata", lambda project_id: None)
+    monkeypatch.setattr("backend.db.repositories.projects.list", lambda: [])
+    monkeypatch.setattr("backend.db.repositories.builds.get_metadata", lambda project_id: None)
     monkeypatch.setattr(
         doctor_service.docker_service,
         "check_docker_status",

@@ -85,6 +85,31 @@ def tag(source: str = typer.Argument(..., help="Source image tag"), target: str 
         raise typer.Exit(1)
 
 
+@registry_cmd.command("plan")
+def plan(
+    registry: str = typer.Argument(..., help="Registry key (dockerhub, ghcr, gitlab, ngc, huggingface)"),
+    source_image: str = typer.Argument(..., help="Local source image tag"),
+    namespace: str = typer.Option(..., "--namespace", "-n", help="Registry namespace, owner, or org"),
+    repository: str = typer.Option(..., "--repository", "-r", help="Registry repository name"),
+    tag_name: str = typer.Option("latest", "--tag", "-t", help="Target image tag"),
+):
+    try:
+        result = registry_service.publish_plan(registry, source_image, namespace, repository, tag_name)
+    except ValueError as e:
+        console.print(f"[red]{e}[/red]")
+        raise typer.Exit(1)
+    table = Table(title=f"Publish Plan — {result['name']}")
+    table.add_column("Field", style="cyan")
+    table.add_column("Value")
+    table.add_row("Target", result["target_image"])
+    table.add_row("Credential", result["credential_hint"])
+    table.add_row("Requires token", "yes" if result["requires_token"] else "no")
+    console.print(table)
+    console.print("[bold]Commands[/bold]")
+    for command in result["commands"]:
+        console.print(f"  [dim]{command}[/dim]")
+
+
 @registry_cmd.command("status")
 def status():
     creds = registry_service.credential_status()

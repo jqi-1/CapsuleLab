@@ -1,8 +1,9 @@
 import shlex
 import subprocess
+import json
 from pathlib import Path
 from dataclasses import dataclass
-from backend.db.sqlite import get_location_tunnel, list_location_tunnels, set_location_tunnel
+from backend.db.repositories import locations
 from backend.models.errors import CapsuleLabError, ErrorCode, Severity
 
 
@@ -32,6 +33,9 @@ class RemoteStatus:
     gpu_available: bool = False
     gpu_name: str = ""
     project_path_exists: bool = False
+    disk_total_gb: float = 0
+    disk_free_gb: float = 0
+    disk_used_percent: int = 0
     error: str = ""
 
 
@@ -86,16 +90,16 @@ def _run_ssh(host: str, command: str, user: str | None = None, timeout: int = 60
 
 
 def assign_tunnel_ports(location_id: str, start_port: int = 10000) -> TunnelSpec:
-    existing = get_location_tunnel(location_id)
+    existing = locations.get_tunnel(location_id)
     if existing:
         return TunnelSpec(proxy_port=existing["proxy_port"], service_port=existing["service_port"])
-    used = {row["proxy_port"] for row in list_location_tunnels()}
-    used.update(row["service_port"] for row in list_location_tunnels())
+    used = {row["proxy_port"] for row in locations.list_tunnels()}
+    used.update(row["service_port"] for row in locations.list_tunnels())
     proxy_port = start_port
     while proxy_port in used or proxy_port + 1 in used:
         proxy_port += 2
     service_port = proxy_port + 1
-    set_location_tunnel(location_id, proxy_port, service_port)
+    locations.set_tunnel(location_id, proxy_port, service_port)
     return TunnelSpec(proxy_port=proxy_port, service_port=service_port)
 
 
@@ -160,6 +164,25 @@ def check_status(host: str, user: str | None = None, remote_path: str | None = N
             out = _run_ssh(host, f"test -d {shlex.quote(remote_path)} && echo exists || echo missing", user, timeout=10)
             status.project_path_exists = out.strip() == "exists"
         except SSHError:
+            pass
+
+    if status.reachable:
+        disk_path = remote_path or "."
+        try:
+            out = _run_ssh(
+                host,
+                f"df -Pk {shlex.quote(disk_path)} | tail -1 | awk '{{print $2, $3, $4, $5}}'",
+                user,
+                timeout=10,
+            )
+            parts = out.split()
+            if len(parts) >= 4:
+                total_kb = int(parts[0])
+                free_kb = int(parts[2])
+                status.disk_total_gb = round(total_kb / 1024 / 1024, 2)
+                status.disk_free_gb = round(free_kb / 1024 / 1024, 2)
+                status.disk_used_percent = int(parts[3].rstrip("%"))
+        except (SSHError, ValueError):
             pass
 
     return status
@@ -341,7 +364,17 @@ def is_running(host: str, container_name: str, user: str | None = None) -> bool:
         return False
 
 
-def run(host: str, container_name: str, image_name: str, project_path: str, gpu: bool, user: str | None = None, ports: list[str] | None = None):
+def run(
+    host: str,
+    container_name: str,
+    image_name: str,
+    project_path: str,
+    gpu: bool,
+    user: str | None = None,
+    ports: list[str] | None = None,
+    env_vars: dict[str, str] | None = None,
+    labels: dict[str, str] | None = None,
+):
     args = ["docker", "run", "-d", "--name", container_name]
     if gpu:
         args.extend(["--gpus", "all"])
@@ -349,6 +382,12 @@ def run(host: str, container_name: str, image_name: str, project_path: str, gpu:
     if ports:
         for p in ports:
             args.extend(["-p", p])
+    if env_vars:
+        for key, value in env_vars.items():
+            args.extend(["-e", f"{key}={value}"])
+    if labels:
+        for key, value in labels.items():
+            args.extend(["--label", f"{key}={value}"])
     args.extend([image_name, "sleep", "infinity"])
     try:
         return _run_ssh(host, " ".join(shlex.quote(arg) for arg in args), user, timeout=120)
@@ -365,6 +404,19 @@ def stop(host: str, container_name: str, user: str | None = None):
         raise DockerError(f"Remote stop failed: {e}")
     except SSHError as e:
         raise SSHError(f"SSH failed during stop: {e}")
+
+
+def inspect(host: str, container_name: str, user: str | None = None) -> dict:
+    try:
+        out = _run_ssh(host, f"docker inspect {shlex.quote(container_name)}", user, timeout=15)
+        data = json.loads(out)
+        return data[0] if data else {}
+    except DockerError as e:
+        raise DockerError(f"Remote inspect failed: {e}")
+    except SSHError as e:
+        raise SSHError(f"SSH failed during inspect: {e}")
+    except json.JSONDecodeError as e:
+        raise DockerError(f"Remote inspect returned invalid JSON: {e}")
 
 
 def logs(host: str, container_name: str, tail: int = 100, user: str | None = None) -> str:

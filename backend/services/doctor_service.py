@@ -15,7 +15,7 @@ from backend.services import (
     image_service,
     profile_service,
 )
-from backend.db.sqlite import get_build_metadata, get_project, list_projects
+from backend.db.repositories import builds, projects
 
 
 @dataclass
@@ -57,14 +57,14 @@ def _add(report: DoctorReport, label: str, ok: bool, detail: str = "", severity:
 
 def _registered_project_for_path(project_path: str) -> dict | None:
     resolved = str(Path(project_path).resolve())
-    for project in list_projects():
+    for project in projects.list():
         if str(Path(project["path"]).resolve()) == resolved:
             return project
     return None
 
 
 def project_doctor(project_id: str) -> DoctorReport:
-    row = get_project(project_id)
+    row = projects.get(project_id)
     if not row:
         raise ValueError(f"Project '{project_id}' not found")
     return project_doctor_for_path(row["path"], project_id=project_id, project_name=row["name"])
@@ -177,7 +177,7 @@ def project_doctor_for_path(project_path: str, project_id: str | None = None, pr
         unpinned = [l for l in content.splitlines() if l.strip() and not l.startswith("#") and "==" not in l and ">=" not in l and l.strip() != ""]
         _add(report, "Pinned packages", not bool(unpinned), f"{len(unpinned)} unpinned" if unpinned else "All pinned", Severity.WARNING)
 
-    build_meta = get_build_metadata(project_id)
+    build_meta = builds.get_metadata(project_id)
     if build_meta:
         _add(report, "Build metadata", True, f"Built at {build_meta['built_at']} — image: {build_meta['image']}", Severity.INFO)
     else:

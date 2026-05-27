@@ -3,13 +3,7 @@ import shlex
 from secrets import token_urlsafe
 
 from backend.services import docker_service, project_service
-from backend.db.sqlite import (
-    create_app_share,
-    list_app_shares,
-    revoke_app_share,
-    set_app_state,
-    get_app_state,
-)
+from backend.db.repositories import apps, shares
 from backend.models.project import AppConfig
 from backend.models.errors import CapsuleLabError, ErrorCode, Severity
 
@@ -17,6 +11,10 @@ from backend.models.errors import CapsuleLabError, ErrorCode, Severity
 class AppError(CapsuleLabError):
     def __init__(self, message: str, detail: str = ""):
         super().__init__(ErrorCode.APP_NOT_FOUND, message, severity=Severity.ERROR, detail=detail)
+
+
+class ShareAccessError(AppError):
+    pass
 
 
 def check_alive(container_name: str, pid: int) -> bool:
@@ -72,7 +70,7 @@ def create_share_url(
     token = token_urlsafe(24)
     expires_at = datetime.now(timezone.utc) + timedelta(hours=hours)
     url = f"{public_base_url.rstrip('/')}/share/{token}"
-    create_app_share(token, project_id, app_cfg.id, url, expires_at.isoformat())
+    shares.create(token, project_id, app_cfg.id, url, expires_at.isoformat())
     return {
         "token": token,
         "project_id": project_id,
@@ -86,16 +84,59 @@ def create_share_url(
 
 def list_share_urls(project_id: str, app_id: str | None = None) -> list[dict]:
     now = datetime.now(timezone.utc)
-    shares = []
-    for share in list_app_shares(project_id, app_id=app_id):
+    results = []
+    for share in shares.list(project_id, app_id=app_id):
         expires_at = _parse_datetime(share["expires_at"])
         share["expired"] = expires_at <= now if expires_at else True
-        shares.append(share)
-    return shares
+        results.append(share)
+    return results
+
+
+def resolve_share_url(token: str, session_id: str | None = None, bind_session: bool = True) -> dict:
+    share = shares.get(token)
+    if not share or share.get("revoked_at"):
+        raise ShareAccessError("Share link not found or revoked.")
+    expires_at = _parse_datetime(share["expires_at"])
+    if not expires_at or expires_at <= datetime.now(timezone.utc):
+        shares.revoke(token)
+        raise ShareAccessError("Share link has expired.")
+    stored_session = share.get("session_id")
+    if stored_session and session_id and stored_session != session_id:
+        raise ShareAccessError("Share link is bound to a different browser session.")
+    if bind_session and session_id and not stored_session:
+        shares.bind_session(token, session_id)
+        share["session_id"] = session_id
+    else:
+        shares.touch(token)
+    share["expired"] = False
+    share["target_url"] = _share_target_url(share)
+    return share
+
+
+def cleanup_expired_share_urls() -> int:
+    return shares.revoke_expired(datetime.now(timezone.utc).isoformat())
 
 
 def revoke_share_url(token: str) -> bool:
-    return revoke_app_share(token)
+    return shares.revoke(token)
+
+
+def _share_target_url(share: dict) -> str:
+    row = None
+    try:
+        from backend.db.repositories import projects
+        row = projects.get(share["project_id"])
+    except Exception:
+        row = None
+    if not row:
+        return ""
+    try:
+        config = project_service.load_config(row["path"])
+        app_cfg = get_app_config(config, share["app_id"])
+    except Exception:
+        return ""
+    base = share["url"].split("/share/", 1)[0]
+    return get_proxy_app_url(share["project_id"], app_cfg, base)
 
 
 def _parse_datetime(value: str) -> datetime | None:
@@ -116,7 +157,7 @@ def start_app(project_id: str, app_cfg: AppConfig, container_name: str) -> dict:
     if not docker_service.is_running(container_name):
         raise AppError(f"Container '{container_name}' is not running. Start the project first.")
 
-    state = get_app_state(project_id, app_cfg.id)
+    state = apps.get_state(project_id, app_cfg.id)
     pid = state.get("pid") if state else None
     if state and state["status"] == "running" and pid:
         if check_alive(container_name, pid):
@@ -139,14 +180,14 @@ def start_app(project_id: str, app_cfg: AppConfig, container_name: str) -> dict:
         output = docker_service.exec_run(container_name, cmd, detach=False)
         pid = int(output.strip())
     except Exception as e:
-        set_app_state(project_id, app_cfg.id, "failed", port=app_cfg.port)
+        apps.set_state(project_id, app_cfg.id, "failed", port=app_cfg.port)
         raise AppError(f"Failed to start app: {e}") from e
 
-    set_app_state(project_id, app_cfg.id, "running", pid=pid, port=app_cfg.port)
+    apps.set_state(project_id, app_cfg.id, "running", pid=pid, port=app_cfg.port)
 
     alive = check_alive(container_name, pid)
     if not alive:
-        set_app_state(project_id, app_cfg.id, "failed", pid=pid, port=app_cfg.port)
+        apps.set_state(project_id, app_cfg.id, "failed", pid=pid, port=app_cfg.port)
         raise AppError(f"App started but process is not alive. Check logs: cap app logs {app_cfg.id}")
 
     return {
@@ -160,21 +201,21 @@ def start_app(project_id: str, app_cfg: AppConfig, container_name: str) -> dict:
 
 def stop_app(project_id: str, app_cfg: AppConfig, container_name: str) -> dict:
     if not docker_service.is_running(container_name):
-        set_app_state(project_id, app_cfg.id, "stopped")
+        apps.set_state(project_id, app_cfg.id, "stopped")
         return {"status": "stopped", "app": app_cfg.id}
 
-    state = get_app_state(project_id, app_cfg.id)
+    state = apps.get_state(project_id, app_cfg.id)
     pid = state.get("pid") if state else None
 
     if pid:
         if check_alive(container_name, pid):
             docker_service.exec_run(container_name, f"kill {pid} 2>/dev/null || true")
     if not app_cfg.command.strip():
-        set_app_state(project_id, app_cfg.id, "stopped")
+        apps.set_state(project_id, app_cfg.id, "stopped")
         return {"status": "stopped", "app": app_cfg.id}
     first_word = app_cfg.command.split()[0]
     docker_service.exec_run(container_name, f"pkill -f {shlex.quote(first_word)} 2>/dev/null || true")
-    set_app_state(project_id, app_cfg.id, "stopped")
+    apps.set_state(project_id, app_cfg.id, "stopped")
 
     return {"status": "stopped", "app": app_cfg.id}
 
@@ -184,13 +225,13 @@ def get_app_status(project_id: str, app_cfg: AppConfig, container_name: str) -> 
         running = docker_service.is_running(container_name)
     except Exception:
         running = False
-    state = get_app_state(project_id, app_cfg.id)
+    state = apps.get_state(project_id, app_cfg.id)
     alive = None
     state_status = state.get("status") if state else "stopped"
     if running and state and state.get("pid"):
         alive = check_alive(container_name, state["pid"])
         if alive is False and state_status == "running":
-            set_app_state(project_id, app_cfg.id, "failed", pid=state["pid"], port=state.get("port"))
+            apps.set_state(project_id, app_cfg.id, "failed", pid=state["pid"], port=state.get("port"))
             state_status = "failed"
     return {
         "app_id": app_cfg.id,

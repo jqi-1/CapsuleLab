@@ -1,6 +1,7 @@
 from pathlib import Path
 
 from backend.db import sqlite
+from backend.db.repositories import projects, builds
 from backend.services import build_assistant_service
 
 
@@ -13,14 +14,14 @@ def _setup_project(monkeypatch, tmp_path):
     (project / ".workbench").mkdir()
     (project / ".workbench" / "project.yaml").write_text("name: demo\nruntime:\n  image: demo:dev\n")
     (project / "Dockerfile").write_text("FROM python:3.12-slim\n")
-    sqlite.register_project("cap-demo", "demo", str(project))
+    projects.register("cap-demo", "demo", str(project))
     return project
 
 
 def test_analyze_failed_build_reports_context_and_pip_suggestion(monkeypatch, tmp_path):
     project = _setup_project(monkeypatch, tmp_path)
     (project / "requirements.txt").write_text("missing-package==0.0.1\n")
-    sqlite.add_build_log(
+    builds.add_log(
         "cap-demo",
         "demo:dev",
         "failed",
@@ -50,7 +51,7 @@ def test_analyze_failed_build_without_logs_is_informational(monkeypatch, tmp_pat
 
 def test_apply_first_proposed_edit_writes_only_build_script(monkeypatch, tmp_path):
     project = _setup_project(monkeypatch, tmp_path)
-    sqlite.add_build_log(
+    builds.add_log(
         "cap-demo",
         "demo:dev",
         "failed",

@@ -3,9 +3,11 @@ from backend.services import docker_service
 from backend.services.app_service import (
     check_alive, check_port_available,
     get_app_url, get_proxy_app_url, create_share_url, list_share_urls,
-    revoke_share_url, build_start_command, get_app_config, get_app_status, AppError,
+    resolve_share_url, cleanup_expired_share_urls, revoke_share_url,
+    build_start_command, get_app_config, get_app_status, AppError, ShareAccessError,
 )
 from backend.db import sqlite
+from backend.db.repositories import projects
 from backend.models.project import AppConfig
 
 
@@ -74,7 +76,7 @@ def test_get_app_status_includes_runtime_metadata(monkeypatch):
     cfg = AppConfig(name="Jupyter", id="jupyter", command="jupyter lab", port=8888)
 
     monkeypatch.setattr("backend.services.app_service.docker_service.is_running", lambda _: False)
-    monkeypatch.setattr("backend.services.app_service.get_app_state", lambda *_: None)
+    monkeypatch.setattr("backend.db.repositories.apps.get_state", lambda *_: None)
 
     status = get_app_status("cap-demo", cfg, "cap-demo")
 
@@ -90,7 +92,7 @@ def test_create_list_and_revoke_share_url(monkeypatch, tmp_path):
     monkeypatch.setattr(sqlite, "DB_DIR", tmp_path)
     monkeypatch.setattr(sqlite, "DB_PATH", tmp_path / "capsulelab.db")
     sqlite.init_db()
-    sqlite.register_project("cap-demo", "demo", str(tmp_path))
+    projects.register("cap-demo", "demo", str(tmp_path))
     cfg = AppConfig(name="Jupyter", id="jupyter", command="jupyter lab", port=8888)
 
     share = create_share_url("cap-demo", cfg, public_base_url="https://example.test", hours=2)
@@ -101,6 +103,50 @@ def test_create_list_and_revoke_share_url(monkeypatch, tmp_path):
     assert shares[0]["token"] == share["token"]
     assert shares[0]["expired"] is False
     assert revoke_share_url(share["token"]) is True
+    assert list_share_urls("cap-demo", "jupyter") == []
+
+
+def test_resolve_share_url_binds_session_and_rejects_other_session(monkeypatch, tmp_path):
+    monkeypatch.setattr(sqlite, "DB_DIR", tmp_path)
+    monkeypatch.setattr(sqlite, "DB_PATH", tmp_path / "capsulelab.db")
+    sqlite.init_db()
+    project = tmp_path / "project"
+    project.mkdir()
+    (project / ".workbench").mkdir()
+    (project / ".workbench" / "project.yaml").write_text(
+        "name: demo\n"
+        "runtime:\n"
+        "  image: demo:dev\n"
+        "apps:\n"
+        "  - name: Jupyter\n"
+        "    id: jupyter\n"
+        "    command: jupyter lab\n"
+        "    port: 8888\n"
+    )
+    projects.register("cap-demo", "demo", str(project))
+    cfg = AppConfig(name="Jupyter", id="jupyter", command="jupyter lab", port=8888)
+    share = create_share_url("cap-demo", cfg, public_base_url="https://example.test", hours=2)
+
+    resolved = resolve_share_url(share["token"], session_id="browser-1")
+
+    assert resolved["session_id"] == "browser-1"
+    assert resolved["target_url"] == "https://example.test/projects/cap-demo/apps/jupyter/"
+    with pytest.raises(ShareAccessError, match="different browser session"):
+        resolve_share_url(share["token"], session_id="browser-2")
+
+
+def test_cleanup_expired_share_urls(monkeypatch, tmp_path):
+    monkeypatch.setattr(sqlite, "DB_DIR", tmp_path)
+    monkeypatch.setattr(sqlite, "DB_PATH", tmp_path / "capsulelab.db")
+    sqlite.init_db()
+    projects.register("cap-demo", "demo", str(tmp_path))
+    cfg = AppConfig(name="Jupyter", id="jupyter", command="jupyter lab", port=8888)
+    share = create_share_url("cap-demo", cfg, hours=1)
+    from backend.db.repositories import shares
+    with sqlite.get_db() as conn:
+        conn.execute("UPDATE app_shares SET expires_at = '2000-01-01T00:00:00+00:00' WHERE token = ?", (share["token"],))
+
+    assert cleanup_expired_share_urls() == 1
     assert list_share_urls("cap-demo", "jupyter") == []
 
 
@@ -117,12 +163,12 @@ def test_get_app_status_marks_stale_running_state_failed(monkeypatch):
 
     monkeypatch.setattr("backend.services.app_service.docker_service.is_running", lambda _: True)
     monkeypatch.setattr(
-        "backend.services.app_service.get_app_state",
+        "backend.db.repositories.apps.get_state",
         lambda *_: {"status": "running", "pid": 123, "port": 8888},
     )
     monkeypatch.setattr("backend.services.app_service.check_alive", lambda *_: False)
     monkeypatch.setattr(
-        "backend.services.app_service.set_app_state",
+        "backend.db.repositories.apps.set_state",
         lambda *args, **kwargs: updates.append((args, kwargs)),
     )
 

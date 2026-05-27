@@ -100,6 +100,7 @@ class RuntimeConfig(BaseModel):
 
 
 class ProjectConfig(BaseModel):
+    schema_version: int = 1
     name: str
     description: Optional[str] = None
     mode: Optional[ProjectMode] = None

@@ -142,6 +142,53 @@ export function ActivityIcon(props: IconProps) {
   );
 }
 
+export function GitBranchIcon(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <circle cx="6" cy="6" r="2" />
+      <circle cx="18" cy="6" r="2" />
+      <circle cx="6" cy="18" r="2" />
+      <path d="M6 8v8" />
+      <path d="M8 6h6a4 4 0 0 1 4 4v6" />
+    </Svg>
+  );
+}
+
+export function GraphIcon(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <circle cx="6" cy="7" r="2.5" />
+      <circle cx="18" cy="6" r="2.5" />
+      <circle cx="17" cy="18" r="2.5" />
+      <circle cx="6" cy="17" r="2.5" />
+      <path d="m8.4 6.8 7.2-.6" />
+      <path d="m7.9 9.1 7.2 6.7" />
+      <path d="m8.5 17.2 6-.1" />
+      <path d="m18 8.5-.8 7" />
+    </Svg>
+  );
+}
+
+export function UploadIcon(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <path d="M12 3v12" />
+      <path d="m7 8 5-5 5 5" />
+      <path d="M5 21h14" />
+    </Svg>
+  );
+}
+
+export function DownloadIcon(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <path d="M12 15V3" />
+      <path d="m7 10 5 5 5-5" />
+      <path d="M5 21h14" />
+    </Svg>
+  );
+}
+
 export function CpuIcon(props: IconProps) {
   return (
     <Svg {...props}>
@@ -155,6 +202,22 @@ export function ChevronRightIcon(props: IconProps) {
   return (
     <Svg {...props}>
       <path d="m9 18 6-6-6-6" />
+    </Svg>
+  );
+}
+
+export function SettingsIcon(props: IconProps) {
+  return (
+    <Svg {...props}>
+      <circle cx="12" cy="12" r="3" />
+      <path d="M12 2v3" />
+      <path d="M12 19v3" />
+      <path d="M2 12h3" />
+      <path d="M19 12h3" />
+      <path d="m4.9 4.9 2.1 2.1" />
+      <path d="m17 17 2.1 2.1" />
+      <path d="m4.9 19.1 2.1-2.1" />
+      <path d="m17 7 2.1-2.1" />
     </Svg>
   );
 }

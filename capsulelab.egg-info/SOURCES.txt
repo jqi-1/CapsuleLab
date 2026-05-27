@@ -12,6 +12,15 @@ backend/api/registry.py
 backend/api/resources.py
 backend/db/__init__.py
 backend/db/sqlite.py
+backend/db/repositories/__init__.py
+backend/db/repositories/apps.py
+backend/db/repositories/builds.py
+backend/db/repositories/locations.py
+backend/db/repositories/projects.py
+backend/db/repositories/resources.py
+backend/db/repositories/runs.py
+backend/db/repositories/secrets.py
+backend/db/repositories/shares.py
 backend/models/__init__.py
 backend/models/errors.py
 backend/models/location.py
@@ -23,6 +32,7 @@ backend/services/build_assistant_service.py
 backend/services/compose_service.py
 backend/services/docker_service.py
 backend/services/doctor_service.py
+backend/services/environment_service.py
 backend/services/git_service.py
 backend/services/gpu_service.py
 backend/services/graph_service.py
@@ -76,9 +86,11 @@ tests/test_build_assistant_service.py
 tests/test_compose_service.py
 tests/test_docker_service.py
 tests/test_doctor_service.py
+tests/test_environment_service.py
 tests/test_git_api.py
 tests/test_git_service.py
 tests/test_gpu_service.py
+tests/test_graph_service.py
 tests/test_ide_service.py
 tests/test_image_resource_services.py
 tests/test_locations_api.py

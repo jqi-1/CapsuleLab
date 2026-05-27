@@ -3,11 +3,13 @@ import Dashboard from "./pages/Dashboard";
 import ProjectDetail from "./pages/ProjectDetail";
 import CreateProject from "./pages/CreateProject";
 import Locations from "./pages/Locations";
-import { BoxIcon, GlobeIcon, PlusIcon } from "./components/icons";
+import Settings from "./pages/Settings";
+import { BoxIcon, GlobeIcon, PlusIcon, SettingsIcon } from "./components/icons";
 
 const links = [
   { to: "/", label: "Projects", icon: BoxIcon },
   { to: "/locations", label: "Locations", icon: GlobeIcon },
+  { to: "/settings", label: "Settings", icon: SettingsIcon },
   { to: "/new", label: "New Project", icon: PlusIcon },
 ];
 
@@ -74,6 +76,7 @@ export default function App() {
             <Routes>
               <Route path="/" element={<Dashboard />} />
               <Route path="/locations" element={<Locations />} />
+              <Route path="/settings" element={<Settings />} />
               <Route path="/new" element={<CreateProject />} />
               <Route path="/project/:id" element={<ProjectDetail />} />
             </Routes>

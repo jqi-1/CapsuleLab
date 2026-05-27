@@ -1,5 +1,6 @@
 from backend.services import ssh_service
 from backend.db import sqlite
+from backend.db.repositories import locations
 
 
 def test_remote_project_path_default_root():
@@ -24,6 +25,8 @@ def test_check_status_remote_path_missing(monkeypatch):
             raise ssh_service.SSHError("missing")
         if "test -d" in command:
             return "missing"
+        if command.startswith("df -Pk"):
+            return "104857600 26214400 78643200 25%"
         raise AssertionError(command)
 
     monkeypatch.setattr(ssh_service, "_run_ssh", fake_run)
@@ -33,6 +36,9 @@ def test_check_status_remote_path_missing(monkeypatch):
     assert status.reachable is True
     assert status.docker_available is True
     assert status.project_path_exists is False
+    assert status.disk_total_gb == 100
+    assert status.disk_free_gb == 75
+    assert status.disk_used_percent == 25
 
 
 def test_remote_build_quotes_paths(monkeypatch):
@@ -64,12 +70,47 @@ def test_remote_run_quotes_volume_path(monkeypatch):
     assert "'/tmp/project with spaces:/workspace'" in calls[0]
 
 
+def test_remote_run_passes_env_and_labels(monkeypatch):
+    calls = []
+
+    def fake_run(host, command, user=None, timeout=60):
+        calls.append(command)
+        return "ok"
+
+    monkeypatch.setattr(ssh_service, "_run_ssh", fake_run)
+
+    ssh_service.run(
+        "example.test",
+        "cap-demo",
+        "demo:dev",
+        "/tmp/project",
+        False,
+        env_vars={"TOKEN": "abc 123"},
+        labels={"com.capsulelab.project": "demo"},
+    )
+
+    assert "'TOKEN=abc 123'" in calls[0]
+    assert "com.capsulelab.project=demo" in calls[0]
+
+
+def test_remote_inspect_parses_first_result(monkeypatch):
+    def fake_run(host, command, user=None, timeout=60):
+        assert command == "docker inspect cap-demo"
+        return '[{"Config": {"Labels": {"com.capsulelab.project": "demo"}}}]'
+
+    monkeypatch.setattr(ssh_service, "_run_ssh", fake_run)
+
+    result = ssh_service.inspect("example.test", "cap-demo")
+
+    assert result["Config"]["Labels"]["com.capsulelab.project"] == "demo"
+
+
 def test_assign_tunnel_ports_persists_workbench_style_pairs(monkeypatch, tmp_path):
     monkeypatch.setattr(sqlite, "DB_DIR", tmp_path)
     monkeypatch.setattr(sqlite, "DB_PATH", tmp_path / "capsulelab.db")
     sqlite.init_db()
-    sqlite.register_location("loc-one", "one", "ssh", "one.example", "alice", None, "docker", False)
-    sqlite.register_location("loc-two", "two", "ssh", "two.example", "bob", None, "docker", False)
+    locations.register("loc-one", "one", "ssh", "one.example", "alice", None, "docker", False)
+    locations.register("loc-two", "two", "ssh", "two.example", "bob", None, "docker", False)
 
     first = ssh_service.assign_tunnel_ports("loc-one")
     second = ssh_service.assign_tunnel_ports("loc-two")

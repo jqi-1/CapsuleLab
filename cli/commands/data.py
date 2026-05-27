@@ -5,7 +5,7 @@ import yaml
 from rich.console import Console
 from rich.table import Table
 
-from backend.services import project_service
+from backend.services import project_service, model_service
 
 console = Console()
 data_cmd = typer.Typer(name="data", help="Manage dataset and cache metadata in project.yaml", no_args_is_help=True)
@@ -80,3 +80,48 @@ def add_cache(
         caches.append({"source": source, "target": target})
         _save_yaml(config_path, data)
     console.print(f"[green]✓[/green] Cache preset {preset} configured")
+
+
+@data_cmd.command("model-register")
+def model_register(
+    name: str = typer.Argument(..., help="Model name"),
+    version: str = typer.Argument(..., help="Model version"),
+    artifact: str = typer.Argument(..., help="Path to model artifact"),
+    source: str = typer.Option("local", "--source", "-s", help="Source label, registry, or URL"),
+):
+    try:
+        record = model_service.register_model(name, version, artifact, source=source)
+    except FileNotFoundError as e:
+        console.print(f"[red]{e}[/red]")
+        raise typer.Exit(1)
+    console.print(f"[green]✓[/green] Registered model {record['name']}:{record['version']}")
+    console.print(f"  ID: {record['id']}")
+    console.print(f"  SHA-256: {record['sha256']}")
+
+
+@data_cmd.command("model-list")
+def model_list(name: str | None = typer.Option(None, "--name", "-n", help="Filter by model name")):
+    records = model_service.list_models(name)
+    table = Table(title="Local Model Registry")
+    table.add_column("ID", style="cyan")
+    table.add_column("Name")
+    table.add_column("Version")
+    table.add_column("Source")
+    table.add_column("SHA-256")
+    for record in records:
+        table.add_row(record["id"], record["name"], record["version"], record["source"], record["sha256"][:12])
+    console.print(table)
+
+
+@data_cmd.command("model-verify")
+def model_verify(model_id: str = typer.Argument(..., help="Model record ID")):
+    try:
+        result = model_service.verify_model(model_id)
+    except ValueError as e:
+        console.print(f"[red]{e}[/red]")
+        raise typer.Exit(1)
+    if result["ok"]:
+        console.print(f"[green]✓[/green] {result['name']}:{result['version']} integrity verified")
+    else:
+        console.print(f"[red]Integrity check failed:[/red] {result['error']}")
+        raise typer.Exit(1)

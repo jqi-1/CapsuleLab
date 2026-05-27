@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
-from backend.db.sqlite import get_project
+from backend.db.repositories import projects
 from backend.models.project import ProjectConfig
 from backend.services import (
     git_service,
@@ -11,6 +11,7 @@ from backend.services import (
     secrets_service,
     project_service,
     doctor_service,
+    graph_service,
 )
 
 router = APIRouter()
@@ -41,11 +42,32 @@ class GitPublishRequest(BaseModel):
     branch: str | None = None
 
 
+class AgentActionRequest(BaseModel):
+    action_type: str
+    title: str
+    rationale: str
+    files: list[str] = []
+
+
+class AgentActionReviewRequest(BaseModel):
+    approved: bool
+    reviewer: str = ""
+    note: str = ""
+
+
 def _project(project_id: str) -> tuple[dict, ProjectConfig]:
-    row = get_project(project_id)
+    row = projects.get(project_id)
     if not row:
         raise HTTPException(404, "Project not found")
     return row, project_service.load_config(row["path"])
+
+
+def _git_action(project_id: str, action, **kwargs):
+    row, _ = _project(project_id)
+    try:
+        return action(row["path"], **kwargs)
+    except git_service.GitError as e:
+        raise HTTPException(400, e.to_dict())
 
 
 @router.get("/git/status")
@@ -54,76 +76,49 @@ def git_status(project_id: str):
     return git_service.git_status(row["path"])
 
 
+@router.post("/git/init")
+def git_init(project_id: str):
+    return _git_action(project_id, git_service.init_repo)
+
+
 @router.get("/git/history")
 def git_history(project_id: str, limit: int = 10):
-    row, _ = _project(project_id)
-    try:
-        return git_service.history(row["path"], limit=limit)
-    except git_service.GitError as e:
-        raise HTTPException(400, e.to_dict())
+    return _git_action(project_id, git_service.history, limit=limit)
 
 
 @router.get("/git/branches")
 def git_branches(project_id: str):
-    row, _ = _project(project_id)
-    try:
-        return git_service.branches(row["path"])
-    except git_service.GitError as e:
-        raise HTTPException(400, e.to_dict())
+    return _git_action(project_id, git_service.branches)
 
 
 @router.post("/git/branches")
 def git_switch_branch(project_id: str, req: GitBranchRequest):
-    row, _ = _project(project_id)
-    try:
-        return git_service.switch_branch(row["path"], req.branch, create=req.create)
-    except git_service.GitError as e:
-        raise HTTPException(400, e.to_dict())
+    return _git_action(project_id, git_service.switch_branch, branch=req.branch, create=req.create)
 
 
 @router.post("/git/commit")
 def git_commit(project_id: str, req: GitCommitRequest):
-    row, _ = _project(project_id)
-    try:
-        return git_service.commit(row["path"], req.message, all_changes=req.all_changes)
-    except git_service.GitError as e:
-        raise HTTPException(400, e.to_dict())
+    return _git_action(project_id, git_service.commit, message=req.message, all_changes=req.all_changes)
 
 
 @router.post("/git/fetch")
 def git_fetch(project_id: str, req: GitRemoteRequest):
-    row, _ = _project(project_id)
-    try:
-        return git_service.fetch(row["path"], remote=req.remote)
-    except git_service.GitError as e:
-        raise HTTPException(400, e.to_dict())
+    return _git_action(project_id, git_service.fetch, remote=req.remote)
 
 
 @router.post("/git/pull")
 def git_pull(project_id: str, req: GitRemoteRequest):
-    row, _ = _project(project_id)
-    try:
-        return git_service.pull(row["path"], remote=req.remote, branch=req.branch)
-    except git_service.GitError as e:
-        raise HTTPException(400, e.to_dict())
+    return _git_action(project_id, git_service.pull, remote=req.remote, branch=req.branch)
 
 
 @router.post("/git/push")
 def git_push(project_id: str, req: GitPushRequest):
-    row, _ = _project(project_id)
-    try:
-        return git_service.push(row["path"], remote=req.remote, branch=req.branch, set_upstream=req.set_upstream)
-    except git_service.GitError as e:
-        raise HTTPException(400, e.to_dict())
+    return _git_action(project_id, git_service.push, remote=req.remote, branch=req.branch, set_upstream=req.set_upstream)
 
 
 @router.post("/git/publish")
 def git_publish(project_id: str, req: GitPublishRequest):
-    row, _ = _project(project_id)
-    try:
-        return git_service.publish(row["path"], req.remote_url, remote=req.remote, branch=req.branch)
-    except git_service.GitError as e:
-        raise HTTPException(400, e.to_dict())
+    return _git_action(project_id, git_service.publish, remote_url=req.remote_url, remote=req.remote, branch=req.branch)
 
 
 @router.get("/secrets")
@@ -191,25 +186,37 @@ def project_profile(project_id: str):
 @router.post("/graph/index")
 def index_project_graph(project_id: str):
     row, _ = _project(project_id)
-    from backend.services import graph_service
     g = graph_service.index_project(project_id, row["path"])
-    return {"node_count": len(g.nodes), "edge_count": len(g.edges)}
+    return graph_service.to_dict(g)
 
 
 @router.get("/graph")
 def get_project_graph(project_id: str):
     row, _ = _project(project_id)
-    from backend.services import graph_service
     g = graph_service.get_graph(project_id)
     if not g.nodes:
         g = graph_service.index_project(project_id, row["path"])
-    return {"project_id": g.project_id, "nodes": len(g.nodes), "edges": len(g.edges)}
+    return graph_service.to_dict(g)
+
+
+@router.get("/graph/search")
+def search_project_graph(project_id: str, q: str = "", kind: str | None = None, limit: int = 25):
+    row, _ = _project(project_id)
+    return graph_service.search(project_id, row["path"], query=q, kind=kind, limit=limit)
+
+
+@router.get("/graph/nodes/{node_id:path}")
+def inspect_project_graph_node(project_id: str, node_id: str, depth: int = 1):
+    row, _ = _project(project_id)
+    try:
+        return graph_service.inspect_node(project_id, row["path"], node_id, depth=depth)
+    except KeyError:
+        raise HTTPException(404, "Graph node not found")
 
 
 @router.get("/graph/summary")
 def project_graph_summary(project_id: str):
     row, _ = _project(project_id)
-    from backend.services import graph_service
     return graph_service.summary(project_id, row["path"])
 
 
@@ -218,15 +225,7 @@ def build_agent_context(project_id: str):
     _project(project_id)
     from backend.services import agent_service
     ctx = agent_service.build_project_context(project_id)
-    return {
-        "project_id": ctx.project_id,
-        "project_name": ctx.project_name,
-        "architecture": ctx.architecture,
-        "setup_steps": ctx.setup_steps,
-        "app_list": ctx.app_list,
-        "check_count": len(ctx.check_results),
-        "recent_runs": ctx.recent_runs,
-    }
+    return _agent_context_response(ctx)
 
 
 @router.get("/agent/context")
@@ -236,18 +235,58 @@ def get_agent_context(project_id: str):
     ctx = agent_service.get_context(project_id)
     if not ctx:
         ctx = agent_service.build_project_context(project_id)
-    return {
-        "project_id": ctx.project_id,
-        "project_name": ctx.project_name,
-        "architecture": ctx.architecture,
-        "setup_steps": ctx.setup_steps,
-        "app_list": ctx.app_list,
-        "check_count": len(ctx.check_results),
-        "recent_runs": ctx.recent_runs,
-    }
+    return _agent_context_response(ctx)
 
 
 @router.get("/agent/catalog")
 def agent_catalog(project_id: str):
     from backend.services import agent_service
     return agent_service.catalog_contexts()
+
+
+def _agent_context_response(ctx):
+    return {
+        "project_id": ctx.project_id,
+        "project_name": ctx.project_name,
+        "project_path": ctx.project_path,
+        "summary": ctx.summary,
+        "architecture": ctx.architecture,
+        "setup_steps": ctx.setup_steps,
+        "app_list": ctx.app_list,
+        "data_mounts": ctx.data_mounts,
+        "secret_refs": ctx.secret_refs,
+        "graph_summary": ctx.graph_summary,
+        "known_issues": ctx.known_issues,
+        "check_count": len(ctx.check_results),
+        "recent_runs": ctx.recent_runs,
+    }
+
+
+@router.get("/agent/actions")
+def list_agent_actions(project_id: str):
+    _project(project_id)
+    from dataclasses import asdict
+    from backend.services import agent_service
+    return [asdict(action) for action in agent_service.list_actions(project_id)]
+
+
+@router.post("/agent/actions")
+def propose_agent_action(project_id: str, req: AgentActionRequest):
+    _project(project_id)
+    from dataclasses import asdict
+    from backend.services import agent_service
+    try:
+        return asdict(agent_service.propose_action(project_id, req.action_type, req.title, req.rationale, req.files))
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
+
+@router.post("/agent/actions/{action_id}/review")
+def review_agent_action(project_id: str, action_id: str, req: AgentActionReviewRequest):
+    _project(project_id)
+    from dataclasses import asdict
+    from backend.services import agent_service
+    try:
+        return asdict(agent_service.review_action(project_id, action_id, req.approved, req.reviewer, req.note))
+    except ValueError as e:
+        raise HTTPException(404, str(e))

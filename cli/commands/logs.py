@@ -1,7 +1,7 @@
 import typer
 from rich.console import Console
 from backend.services import docker_service, project_service, ssh_service
-from backend.db.sqlite import get_location_by_name
+from backend.db.repositories import locations
 
 console = Console()
 
@@ -22,7 +22,7 @@ def logs(
     container_name = project_service.get_container_name(config.name)
 
     if location:
-        loc = get_location_by_name(location)
+        loc = locations.get_by_name(location)
         if not loc:
             console.print(f"[red]Location '{location}' not found.[/red]")
             raise typer.Exit(1)

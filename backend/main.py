@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from backend.db.sqlite import init_db
-from backend.api import projects, apps, logs, compose, locations, backlog, resources, registry
+from backend.api import projects, apps, logs, compose, locations, backlog, resources, registry, models, metadata, settings
 from backend.services import docker_service, gpu_service
 
 app = FastAPI(title="CapsuleLab API", version="0.1.0")
@@ -22,6 +22,9 @@ app.include_router(backlog.router, prefix="/api/projects/{project_id}", tags=["p
 app.include_router(locations.router, prefix="/api/locations", tags=["locations"])
 app.include_router(resources.router, prefix="/api/projects", tags=["resources"])
 app.include_router(registry.router, prefix="/api/registry", tags=["registry"])
+app.include_router(models.router, prefix="/api/models", tags=["models"])
+app.include_router(metadata.router, prefix="/api/metadata", tags=["metadata"])
+app.include_router(settings.router, prefix="/api/settings", tags=["settings"])
 
 
 @app.on_event("startup")

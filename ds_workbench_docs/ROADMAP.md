@@ -62,7 +62,7 @@ Reviewed against NVIDIA AI Workbench docs on May 25, 2026:
 
 ### 1. Parity And Runtime Reliability
 
-Status: Completed
+Status: Done
 
 Goal: make the current feature set dependable before adding another wide surface.
 
@@ -90,7 +90,7 @@ The same project should show coherent status in the API and UI, with no raw stac
 
 ### 2. Project Reproducibility Report
 
-Status: Completed
+Status: Done
 
 Goal: turn `doctor` into the core trust feature.
 
@@ -105,7 +105,7 @@ AI Workbench gap closed: versioned environment confidence and visible changes be
 
 ### 3. Project Profiles And Template Defaults
 
-Status: Not done
+Status: In progress
 
 Goal: make `research`, `deployable`, and `opensource` first-class project profiles without creating separate products.
 
@@ -131,7 +131,7 @@ Each project should report profile-specific readiness without losing the common 
 
 ### 4. Managed App Lifecycle And URLs
 
-Status: Completed
+Status: In progress
 
 Goal: make JupyterLab, Streamlit, TensorBoard, MLflow, Gradio, RStudio, and custom apps feel like first-class project tools.
 
@@ -148,7 +148,7 @@ AI Workbench gap closed: managed applications surfaced by the workbench rather t
 
 ### 5. Remote Location V1
 
-Status: Completed
+Status: In progress
 
 Goal: make SSH locations honest, repeatable, and useful without adding a remote agent yet.
 
@@ -165,7 +165,7 @@ AI Workbench gap partially closed: locations and project mobility. CapsuleLab sh
 
 ### 6. Git Import And Project Inventory
 
-Status: Completed
+Status: In progress
 
 Goal: let users bring existing repos into CapsuleLab without manual setup.
 
@@ -182,7 +182,7 @@ AI Workbench gap closed: managed Git repository workflows and import of existing
 
 ### 7. Secrets, Datasets, Caches, And Per-Location Overrides
 
-Status: Completed
+Status: In progress
 
 Goal: separate versioned project intent from machine-specific values.
 
@@ -198,7 +198,7 @@ AI Workbench gap closed: host-specific runtime config, environment variables, mo
 
 ### 8. Compose And Multi-Service Projects
 
-Status: Completed
+Status: In progress
 
 Goal: make multi-container projects a supported path, not a side command.
 
@@ -214,7 +214,7 @@ AI Workbench gap closed: Compose stack support for full-stack AI systems.
 
 ### 9. IDE And Agent Integration
 
-Status: Completed
+Status: Done
 
 Goal: support real development inside the project container.
 
@@ -230,7 +230,7 @@ AI Workbench gap closed: IDEs and AI coding agents scoped to the project contain
 
 ### 10. Knowledge Graph And Agent Workspace
 
-Status: Not done
+Status: In progress
 
 Goal: make CapsuleLab agent-native without letting agents blur project boundaries.
 
@@ -249,7 +249,7 @@ An agent should be able to answer "what is this capsule, how do I run it, what c
 
 ### 11. Build Diagnostics And BYOC
 
-Status: Completed
+Status: In progress
 
 Goal: make failed builds fixable and custom images safe to use.
 
@@ -269,21 +269,21 @@ Keep the default catalog small until validation is automated.
 
 Maintained now:
 
-- `python-basic`: Completed
-- `pytorch-cuda`: Completed
-- `streamlit-dashboard`: Completed
+- `python-basic`: Done
+- `pytorch-cuda`: Done
+- `streamlit-dashboard`: Done
 
 Add next only after template validation exists:
 
-- `research-rag`: Not done - notebooks, retrieval stack, evaluation runs, source notes, and graph-ready paper/context layout.
-- `research-pytorch`: Not done - training notebook, model cache, TensorBoard, experiment logging, and reproducibility report.
-- `research-model-eval`: Not done - benchmark harness, model comparison dashboard, and run-diff output.
-- `deployable-fastapi`: Not done - model API, health checks, tests, Dockerfile, API tester, and deployment manifest.
-- `deployable-gradio`: Not done - demo app packaged with logs, env validation, and release checklist.
-- `deployable-batch-inference`: Not done - scripts, configs, sample inputs, output mounts, and runtime logs.
-- `opensource-python-package`: Not done - README/license/contributing/docs/examples/package metadata and CI template.
-- `opensource-ai-demo`: Not done - public demo repo with app launcher, screenshots/assets, examples, and release checklist.
-- `agent-sandbox`: Not done - IDE/agent-ready project container with Git visibility and conservative permissions.
+- `research-rag`: In progress - basic template exists; retrieval stack, evaluation runs, source notes, and graph-ready paper/context layout still need depth.
+- `research-pytorch`: Not yet done - training notebook, model cache, TensorBoard, experiment logging, and reproducibility report.
+- `research-model-eval`: Not yet done - benchmark harness, model comparison dashboard, and run-diff output.
+- `deployable-fastapi`: In progress - basic API template, tests, Dockerfile, and health path exist; API tester and deployment manifest still need depth.
+- `deployable-gradio`: Not yet done - demo app packaged with logs, env validation, and release checklist.
+- `deployable-batch-inference`: Not yet done - scripts, configs, sample inputs, output mounts, and runtime logs.
+- `opensource-python-package`: In progress - package template, README, license, contributing guide, examples, and tests exist; docs, CI, changelog, and release checklist still need depth.
+- `opensource-ai-demo`: Not yet done - public demo repo with app launcher, screenshots/assets, examples, and release checklist.
+- `agent-sandbox`: Not yet done - IDE/agent-ready project container with Git visibility and conservative permissions.
 
 Every template must include:
 
@@ -299,7 +299,7 @@ Every template must include:
 ## Later Backlog
 
 ### App Networking & Sharing
-Status: Not done
+Status: In progress
 
 - Stable app reverse proxy for consistent local/remote app URLs
 - Optional shared app URLs for collaboration within trusted networks
@@ -307,49 +307,49 @@ Status: Not done
 - Browser/session binding for share URLs and cleanup of expired shares
 
 ### Container Registry Workflows
-Status: Not done
+Status: In progress
 
 - Documentation for NGC, Hugging Face, GitHub Container Registry, GitLab Container Registry, and Docker Hub workflows
 - Private registry authentication and credential management
 - Image signing and verification for enhanced security
 
 ### Remote Execution Enhancements
-Status: Not done
+Status: Not yet done
 
 - Cloud GPU location adapters (AWS, GCP, Azure) after SSH locations are reliable
 - Tailscale-style remote guidance for secure mesh networking
 - Remote agent option for improved performance over pure SSH
 
 ### Project Collaboration & Distribution
-Status: Completed
+Status: In progress
 
 - Project publish/deep-link flows for sharing workbench projects
 - Project templating system for organizational reuse
 - Export/import functionality for project snapshots
 
 ### Model & Data Management
-Status: Not done
+Status: Not yet done
 
 - Local model registry with versioning and metadata tracking
 - Model download integrity checks and caching
 - Dataset versioning integration with project Git history
 
 ### Observability & Monitoring
-Status: Completed
+Status: In progress
 
 - Rich resource dashboard with historical trends for CPU, memory, GPU, VRAM, disk usage
 - Container and app-level resource consumption tracking
 - Compose service health metrics and dependency visualization
 
 ### Configuration & Extensibility
-Status: Not done
+Status: Not yet done
 
 - Settings UI for runtime preferences, Docker/Podman selection, certificates, and default paths
 - Plugin architecture for extending workbench functionality
 - Custom dashboard widgets and panels
 
 ### Data Migration & Evolution
-Status: Not done
+Status: In progress
 
 - Migration system for SQLite once local state changes become incompatible
 - Config schema versioning and automatic migration

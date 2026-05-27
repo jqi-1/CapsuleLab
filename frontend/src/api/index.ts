@@ -54,7 +54,7 @@ export interface ProjectStatus {
   apps: AppStatus[];
   compose: ComposeStatus;
   build: { image: string; image_id: string | null; digest: string | null; built_at: string } | null;
-  git: { is_repo: boolean; branch: string; remote: string; dirty_files: number; lfs_available: boolean };
+  git: GitStatus;
   resources: {
     disk: { path: string; total_bytes: number; used_bytes: number; free_bytes: number; free_percent: number };
     gpu: { available: boolean; gpus: { name: string; utilization_percent: number; memory_used_mb: number; memory_total_mb: number }[] };
@@ -83,6 +83,90 @@ export interface ProjectStatus {
     disk_total_gb: number | null;
     disk_percent: number | null;
   };
+}
+
+export interface GitStatus {
+  is_repo: boolean;
+  branch: string;
+  remote: string;
+  dirty_files: number;
+  lfs_available: boolean;
+}
+
+export interface GitCommit {
+  hash: string;
+  author: string;
+  date: string;
+  subject: string;
+}
+
+export interface GitBranch {
+  name: string;
+  current: boolean;
+}
+
+export interface GitBranches {
+  current: string;
+  branches: GitBranch[];
+}
+
+export interface GitActionResult {
+  status: string;
+  path?: string;
+  commit?: string;
+  output?: string;
+  remote?: string;
+  branch?: string | null;
+  url?: string;
+}
+
+export interface ProjectEnvironment {
+  runtime: { type: string; dockerfile: string; image: string; gpu: boolean };
+  dependency_file: string;
+  dependency_file_exists: boolean;
+  dependencies: string[];
+  environment: Record<string, string>;
+}
+
+export type SettingsMap = Record<string, unknown>;
+
+export interface CodeGraphNode {
+  id: string;
+  kind: string;
+  label: string;
+  file_path: string;
+  metadata: Record<string, string | number | boolean | null>;
+}
+
+export interface CodeGraphEdge {
+  source: string;
+  target: string;
+  kind: string;
+  metadata: Record<string, string | number | boolean | null>;
+}
+
+export interface CodeGraphSummary {
+  node_count: number;
+  edge_count: number;
+  components: Record<string, number>;
+  languages: Record<string, number>;
+  hotspots: { id: string; label: string; kind: string; degree: number; file_path: string }[];
+  risks: string[];
+}
+
+export interface CodeGraph {
+  project_id: string;
+  project_path: string;
+  nodes: CodeGraphNode[];
+  edges: CodeGraphEdge[];
+  summary: CodeGraphSummary;
+}
+
+export interface CodeGraphInspection {
+  node: CodeGraphNode;
+  incoming: CodeGraphEdge[];
+  outgoing: CodeGraphEdge[];
+  graph: CodeGraph;
 }
 
 export interface ComposeStatus {
@@ -158,6 +242,90 @@ export function stopProject(id: string): Promise<{ status: string; container: st
 
 export function projectStatus(id: string): Promise<ProjectStatus> {
   return request(`/projects/${id}/status`);
+}
+
+export function projectEnvironment(id: string): Promise<ProjectEnvironment> {
+  return request(`/projects/${id}/environment`);
+}
+
+export function addProjectDependency(id: string, dependency: string): Promise<ProjectEnvironment> {
+  return request(`/projects/${id}/environment/dependencies`, { method: "POST", body: JSON.stringify({ dependency }) });
+}
+
+export function setProjectEnvironmentVariable(id: string, name: string, value: string): Promise<ProjectEnvironment> {
+  return request(`/projects/${id}/environment/variables`, { method: "POST", body: JSON.stringify({ name, value }) });
+}
+
+export function removeProjectEnvironmentVariable(id: string, name: string): Promise<ProjectEnvironment> {
+  return request(`/projects/${id}/environment/variables/${encodeURIComponent(name)}`, { method: "DELETE" });
+}
+
+export function getProjectGraph(projectId: string): Promise<CodeGraph> {
+  return request(`/projects/${projectId}/graph`);
+}
+
+export function indexProjectGraph(projectId: string): Promise<CodeGraph> {
+  return request(`/projects/${projectId}/graph/index`, { method: "POST" });
+}
+
+export function projectGraphSummary(projectId: string): Promise<{ project_id: string; project_name: string } & CodeGraphSummary> {
+  return request(`/projects/${projectId}/graph/summary`);
+}
+
+export function searchProjectGraph(projectId: string, query: string, kind?: string, limit = 25): Promise<CodeGraph> {
+  const params = new URLSearchParams({ q: query, limit: String(limit) });
+  if (kind) params.set("kind", kind);
+  return request(`/projects/${projectId}/graph/search?${params.toString()}`);
+}
+
+export function inspectProjectGraphNode(projectId: string, nodeId: string, depth = 1): Promise<CodeGraphInspection> {
+  return request(`/projects/${projectId}/graph/nodes/${encodeURIComponent(nodeId)}?depth=${depth}`);
+}
+
+export function gitStatus(projectId: string): Promise<GitStatus> {
+  return request(`/projects/${projectId}/git/status`);
+}
+
+export function gitInit(projectId: string): Promise<GitActionResult> {
+  return request(`/projects/${projectId}/git/init`, { method: "POST" });
+}
+
+export function gitHistory(projectId: string, limit = 8): Promise<GitCommit[]> {
+  return request(`/projects/${projectId}/git/history?limit=${limit}`);
+}
+
+export function gitBranches(projectId: string): Promise<GitBranches> {
+  return request(`/projects/${projectId}/git/branches`);
+}
+
+export function gitSwitchBranch(projectId: string, branch: string, create = false): Promise<GitActionResult> {
+  return request(`/projects/${projectId}/git/branches`, { method: "POST", body: JSON.stringify({ branch, create }) });
+}
+
+export function gitCommit(projectId: string, message: string, allChanges = true): Promise<GitActionResult> {
+  return request(`/projects/${projectId}/git/commit`, { method: "POST", body: JSON.stringify({ message, all_changes: allChanges }) });
+}
+
+export function gitFetch(projectId: string, remote = "origin"): Promise<GitActionResult> {
+  return request(`/projects/${projectId}/git/fetch`, { method: "POST", body: JSON.stringify({ remote }) });
+}
+
+export function gitPull(projectId: string, remote = "origin", branch?: string): Promise<GitActionResult> {
+  return request(`/projects/${projectId}/git/pull`, { method: "POST", body: JSON.stringify({ remote, branch }) });
+}
+
+export function gitPush(projectId: string, remote = "origin", branch?: string, setUpstream = false): Promise<GitActionResult> {
+  return request(`/projects/${projectId}/git/push`, {
+    method: "POST",
+    body: JSON.stringify({ remote, branch, set_upstream: setUpstream }),
+  });
+}
+
+export function gitPublish(projectId: string, remoteUrl: string, remote = "origin", branch?: string): Promise<GitActionResult> {
+  return request(`/projects/${projectId}/git/publish`, {
+    method: "POST",
+    body: JSON.stringify({ remote_url: remoteUrl, remote, branch }),
+  });
 }
 
 export function startApp(projectId: string, appId: string): Promise<{ status: string; app: string; pid: number; url: string }> {
@@ -350,4 +518,20 @@ export function getLatestResourceSnapshot(projectId: string): Promise<{ project_
 
 export function collectResourceSnapshot(projectId: string): Promise<{ project_id: string; snapshot_id: number; message: string }> {
   return request(`/projects/${projectId}/resources/collect`, { method: "POST" });
+}
+
+export function listSettings(): Promise<SettingsMap> {
+  return request("/settings");
+}
+
+export function getSetting(key: string): Promise<{ key: string; value: unknown }> {
+  return request(`/settings/${encodeURIComponent(key)}`);
+}
+
+export function setSetting(key: string, value: unknown): Promise<{ key: string; value: unknown }> {
+  return request(`/settings/${encodeURIComponent(key)}`, { method: "PUT", body: JSON.stringify({ value }) });
+}
+
+export function removeSetting(key: string): Promise<{ removed: boolean; key: string }> {
+  return request(`/settings/${encodeURIComponent(key)}`, { method: "DELETE" });
 }

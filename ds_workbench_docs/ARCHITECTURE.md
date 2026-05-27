@@ -70,7 +70,7 @@ The next stages should deepen the current architecture rather than widen it too 
 
 ### Stage 1: Runtime Parity And Project Doctor
 
-Status: Completed
+Status: Done
 
 Goal: make the existing local workbench trustworthy.
 
@@ -90,7 +90,7 @@ Architecture impact:
 
 ### Stage 2: Profiles, Templates, And Manifest Evolution
 
-Status: Not done
+Status: In progress
 
 Goal: introduce `research`, `deployable`, and `opensource` profiles as defaults and checks, not separate runtimes.
 
@@ -110,7 +110,7 @@ Architecture impact:
 
 ### Stage 3: Managed Apps, URLs, And Remote Locations
 
-Status: Completed
+Status: In progress
 
 Goal: make local and SSH projects feel consistent when launching web apps, process apps, and Compose apps.
 
@@ -131,7 +131,7 @@ Architecture impact:
 
 ### Stage 4: Knowledge Graph And Agent Workspace
 
-Status: Not done
+Status: In progress
 
 Goal: make projects understandable to agents and users without letting agents escape the capsule boundary.
 
@@ -150,7 +150,7 @@ Architecture impact:
 
 ### Stage 5: Packaging, Deployment Readiness, And Open-Source Release
 
-Status: Not done
+Status: In progress
 
 Goal: help users turn a capsule into a deployable or public artifact while preserving local-first control.
 

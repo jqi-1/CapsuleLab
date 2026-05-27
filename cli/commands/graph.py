@@ -2,7 +2,7 @@ import typer
 from rich.console import Console
 from rich.table import Table
 from backend.services import graph_service, project_service
-from backend.db.sqlite import get_project
+from backend.db.repositories import projects
 
 console = Console()
 
@@ -21,7 +21,7 @@ def graph(
         config = project_service.load_config(str(path))
         project_id = project_service.get_project_id(config.name)
 
-    row = get_project(project_id)
+    row = projects.get(project_id)
     if not row:
         console.print(f"[red]Project '{project_id}' not found in database. Register it with 'cap project register'.[/red]")
         raise typer.Exit(1)

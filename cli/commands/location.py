@@ -2,11 +2,8 @@ import typer
 from rich.console import Console
 from rich.table import Table
 from backend.services import ssh_service, location_override_service
-from backend.db.sqlite import (
-    list_locations, register_location, remove_location,
-    get_location_by_name, init_db, set_location_override,
-    remove_location_override, list_location_overrides,
-)
+from backend.db.sqlite import init_db
+from backend.db.repositories import locations
 
 console = Console()
 location_cmd = typer.Typer(name="location", help="Manage remote execution locations", no_args_is_help=True)
@@ -26,8 +23,8 @@ def location_add(
 ):
     init_db()
     location_id = _get_location_id(name)
-    register_location(location_id, name, "ssh", host, user, project_root, "docker", gpu)
-    loc = get_location_by_name(name)
+    locations.register(location_id, name, "ssh", host, user, project_root, "docker", gpu)
+    loc = locations.get_by_name(name)
     tunnel = ssh_service.tunnel_info(loc)
 
     console.print(f"[green]✓[/green] Location [bold]{name}[/bold] added")
@@ -54,8 +51,8 @@ def location_add(
 
 @location_cmd.command("list")
 def location_list():
-    locations = list_locations()
-    if not locations:
+    all_locations = locations.list()
+    if not all_locations:
         console.print("[yellow]No locations configured.[/yellow]")
         return
 
@@ -69,7 +66,7 @@ def location_list():
     table.add_column("Proxy")
     table.add_column("Service")
 
-    for loc in locations:
+    for loc in all_locations:
         tunnel = ssh_service.tunnel_info(loc)
         table.add_row(
             loc["name"],
@@ -88,7 +85,7 @@ def location_list():
 def location_tunnel(
     name: str = typer.Argument(..., help="Location name"),
 ):
-    loc = get_location_by_name(name)
+    loc = locations.get_by_name(name)
     if not loc:
         console.print(f"[red]Location '{name}' not found.[/red]")
         raise typer.Exit(1)
@@ -111,13 +108,13 @@ def location_override(
     remove: bool = typer.Option(False, "--remove", "-r", help="Remove the override instead of setting it"),
     list_all: bool = typer.Option(False, "--list", "-l", help="List all overrides for this location"),
 ):
-    loc = get_location_by_name(name)
+    loc = locations.get_by_name(name)
     if not loc:
         console.print(f"[red]Location '{name}' not found.[/red]")
         raise typer.Exit(1)
 
     if list_all:
-        overrides = list_location_overrides(loc["id"])
+        overrides = locations.list_overrides(loc["id"])
         if not overrides:
             console.print("[yellow]No overrides for this location.[/yellow]")
             return
@@ -131,7 +128,7 @@ def location_override(
         return
 
     if remove:
-        remove_location_override(loc["id"], override_type, logical_name)
+        locations.remove_override(loc["id"], override_type, logical_name)
         console.print(f"[green]✓[/green] Removed {override_type} override '{logical_name}' from '{name}'")
         return
 
@@ -139,7 +136,7 @@ def location_override(
         console.print("[red]--value is required when setting an override.[/red]")
         raise typer.Exit(1)
 
-    set_location_override(loc["id"], override_type, logical_name, value)
+    locations.set_override(loc["id"], override_type, logical_name, value)
     console.print(f"[green]✓[/green] Set {override_type} override '{logical_name}' → {value} on '{name}'")
 
 
@@ -147,11 +144,11 @@ def location_override(
 def location_remove(
     name: str = typer.Argument(..., help="Location name to remove"),
 ):
-    loc = get_location_by_name(name)
+    loc = locations.get_by_name(name)
     if not loc:
         console.print(f"[red]Location '{name}' not found.[/red]")
         raise typer.Exit(1)
-    remove_location(loc["id"])
+    locations.remove(loc["id"])
     console.print(f"[green]✓[/green] Location '[bold]{name}[/bold]' removed")
 
 
@@ -160,7 +157,7 @@ def location_check(
     name: str = typer.Argument(..., help="Location name"),
     path: str = typer.Option(None, "--path", "-p", help="Optional local project directory to check remote project path"),
 ):
-    loc = get_location_by_name(name)
+    loc = locations.get_by_name(name)
     if not loc:
         console.print(f"[red]Location '{name}' not found.[/red]")
         raise typer.Exit(1)
@@ -173,7 +170,7 @@ def location_check(
     table.add_column("Status")
     table.add_column("Detail")
 
-    status = ssh_service.check_status(loc["host"], loc["user"])
+    status = ssh_service.check_status(loc["host"], loc["user"], loc.get("project_root"))
 
     reachable_str = "[green]✓[/green] Reachable" if status.reachable else "[red]✗[/red] Unreachable"
     table.add_row("SSH", reachable_str, "" if status.reachable else status.error)
@@ -190,6 +187,19 @@ def location_check(
             table.add_row("GPU", "[yellow]⚠[/yellow] Not detected", "nvidia-smi not found (configured as GPU location)")
         else:
             table.add_row("GPU", "[dim]–[/dim] Not checked", "GPU not configured for this location")
+
+        if loc.get("project_root"):
+            table.add_row(
+                "Project root",
+                "[green]✓[/green] Found" if status.project_path_exists else "[yellow]⚠[/yellow] Missing",
+                loc["project_root"],
+            )
+        if status.disk_total_gb:
+            table.add_row(
+                "Disk",
+                f"{status.disk_used_percent}% used",
+                f"{status.disk_free_gb} GB free of {status.disk_total_gb} GB",
+            )
 
     if path and status.reachable:
         from backend.services import project_service

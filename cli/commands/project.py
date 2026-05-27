@@ -2,7 +2,7 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
-from backend.db.sqlite import remove_project
+from backend.db.repositories import projects
 from backend.services import git_service, project_service
 
 console = Console()
@@ -72,8 +72,25 @@ def project_repair(
 def project_remove(
     project_id: str = typer.Argument(..., help="Registered project ID"),
 ):
-    remove_project(project_id)
+    projects.remove(project_id)
     console.print(f"[green]✓[/green] Removed {project_id} from the project inventory")
+
+
+@project_cmd.command("migrate-manifest")
+def project_migrate_manifest(
+    path: str = typer.Option(None, "--path", "-p", help="Project directory"),
+    capsule_copy: bool = typer.Option(True, "--capsule-copy/--no-capsule-copy", help="Write a top-level capsule.yaml migration copy"),
+):
+    project_path = _project_path(path)
+    try:
+        result = project_service.migrate_manifest(project_path, write_capsule_copy=capsule_copy)
+    except Exception as e:
+        console.print(f"[red]Manifest migration failed:[/red] {e}")
+        raise typer.Exit(1)
+    console.print(f"[green]✓[/green] Manifest schema v{result['schema_version']} written")
+    console.print(f"  Canonical: {result['canonical']}")
+    if result["capsule"]:
+        console.print(f"  Capsule copy: {result['capsule']}")
 
 
 def _print_detected(result: dict):

@@ -17,6 +17,14 @@ class ImageTagRequest(BaseModel):
     target: str
 
 
+class RegistryPublishPlanRequest(BaseModel):
+    registry: str
+    source_image: str
+    namespace: str
+    repository: str
+    tag: str = "latest"
+
+
 @router.get("")
 def list_registries():
     return registry_service.list_registries()
@@ -25,6 +33,14 @@ def list_registries():
 @router.get("/credentials")
 def credential_status():
     return registry_service.credential_status()
+
+
+@router.post("/publish-plan")
+def registry_publish_plan(req: RegistryPublishPlanRequest):
+    try:
+        return registry_service.publish_plan(req.registry, req.source_image, req.namespace, req.repository, req.tag)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
 
 
 @router.post("/{registry_key}/login")

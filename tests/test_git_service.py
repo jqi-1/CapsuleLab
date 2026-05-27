@@ -43,6 +43,32 @@ def test_git_status_uses_rev_parse_not_dot_git(monkeypatch, tmp_path):
     assert ["git", "rev-parse", "--is-inside-work-tree"] in calls
 
 
+def test_init_repo_sets_identity_and_commits(monkeypatch, tmp_path):
+    calls = []
+
+    def fake_run(args, cwd=None):
+        calls.append(args)
+        if args == ["git", "config", "user.name"]:
+            raise git_service.GitError("unset")
+        if args == ["git", "config", "user.email"]:
+            raise git_service.GitError("unset")
+        if args == ["git", "status", "--porcelain"]:
+            return "A  .workbench/project.yaml"
+        if args == ["git", "rev-parse", "--short", "HEAD"]:
+            return "abc123"
+        return ""
+
+    monkeypatch.setattr(git_service, "_run", fake_run)
+
+    result = git_service.init_repo(str(tmp_path))
+
+    assert result["status"] == "initialized"
+    assert result["commit"] == "abc123"
+    assert ["git", "config", "user.name", "CapsuleLab"] in calls
+    assert ["git", "config", "user.email", "capsulelab@local"] in calls
+    assert ["git", "commit", "-m", "Initial commit"] in calls
+
+
 def test_analyze_project_detects_compose_apps_gpu_and_inputs(tmp_path):
     (tmp_path / "compose.yaml").write_text("services:\n  app:\n    image: demo\n")
     (tmp_path / "Dockerfile").write_text("FROM pytorch/pytorch:2.4.1-cuda12.1-cudnn9-runtime\n")
@@ -80,7 +106,7 @@ def test_register_existing_returns_detection_and_registers(monkeypatch, tmp_path
     def fake_register(project_id, name, path):
         registered.update({"project_id": project_id, "name": name, "path": path})
 
-    monkeypatch.setattr(git_service, "register_project", fake_register)
+    monkeypatch.setattr("backend.db.repositories.projects.register", fake_register)
     (tmp_path / "requirements.txt").write_text("jupyterlab==4.2.0\n")
 
     result = git_service.register_existing(str(tmp_path), name="demo")

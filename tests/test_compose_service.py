@@ -44,6 +44,8 @@ def test_ps_parses_json(monkeypatch, tmp_path):
         "name": "demo-web-1",
         "service": "web",
         "state": "running",
+        "health": "",
+        "exit_code": None,
         "ports": "0.0.0.0:8000->8000/tcp",
     }]
 
@@ -154,6 +156,54 @@ services:
     assert status["detected"] is True
     assert status["definitions"][0]["service"] == "app"
     assert status["definitions"][0]["urls"] == ["http://localhost:8501"]
+    assert status["service_statuses"][0]["state"] == "not_created"
+
+
+def test_status_combines_compose_runtime_health_ports_and_urls(monkeypatch, tmp_path):
+    (tmp_path / "compose.yaml").write_text(
+        """
+services:
+  app:
+    image: app
+    ports:
+      - "8501:8501"
+    environment:
+      NVWB_TRIM_PREFIX: "true"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8501/health"]
+  worker:
+    image: worker
+    depends_on:
+      - app
+"""
+    )
+    monkeypatch.setattr(compose_service, "compose_binary", lambda: "docker compose")
+
+    def fake_run(project_path, args, capture=True):
+        output = "\n".join([
+            '{"Name":"demo-app-1","Service":"app","State":"running","Health":"healthy","Ports":"0.0.0.0:8501->8501/tcp"}',
+            '{"Name":"demo-worker-1","Service":"worker","State":"exited","ExitCode":1,"Ports":""}',
+        ])
+        return subprocess.CompletedProcess(args, 0, output, "")
+
+    monkeypatch.setattr(compose_service, "_run", fake_run)
+
+    status = compose_service.status(str(tmp_path))
+    app = next(service for service in status["service_statuses"] if service["service"] == "app")
+    worker = next(service for service in status["service_statuses"] if service["service"] == "worker")
+
+    assert app["state"] == "running"
+    assert app["health"] == "healthy"
+    assert app["ok"] is True
+    assert app["published_ports"] == [8501]
+    assert app["urls"] == ["http://localhost:8501"]
+    assert worker["state"] == "exited"
+    assert worker["health"] == "stopped"
+    assert worker["ok"] is False
+    assert worker["depends_on"] == ["app"]
+    assert status["runtime"]["kind"] == "compose"
+    assert status["runtime"]["ok"] is False
+    assert status["runtime"]["running_count"] == 1
 
 
 def test_up_passes_profiles_before_detach(monkeypatch, tmp_path):

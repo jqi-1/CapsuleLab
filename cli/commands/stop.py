@@ -1,7 +1,7 @@
 import typer
 from rich.console import Console
-from backend.services import docker_service, project_service, ssh_service
-from backend.db.sqlite import get_location_by_name
+from backend.services import project_service, runtime_service
+from backend.db.repositories import locations
 
 console = Console()
 
@@ -20,30 +20,29 @@ def stop(
     container_name = project_service.get_container_name(config.name)
 
     if location:
-        loc = get_location_by_name(location)
+        loc = locations.get_by_name(location)
         if not loc:
             console.print(f"[red]Location '{location}' not found.[/red]")
             raise typer.Exit(1)
-        host = loc["host"]
-        user = loc.get("user")
-
+        adapter = runtime_service.RemoteSSHAdapter(loc, project_path)
         console.print(f"Stopping remote container '[bold]{container_name}[/bold]'...")
-        try:
-            ssh_service.stop(host, container_name, user)
-            console.print(f"[green]✓[/green] Remote container stopped and removed: {container_name}")
-        except ssh_service.SSHError as e:
-            console.print(f"[red]{e}[/red]")
-            raise typer.Exit(1)
-        return
+    else:
+        adapter = runtime_service.LocalDockerAdapter()
+        console.print(f"Stopping container '{container_name}'...")
 
-    if not docker_service.container_exists(container_name):
-        console.print(f"[yellow]Container '{container_name}' does not exist.[/yellow]")
-        return
-
-    console.print(f"Stopping container '{container_name}'...")
     try:
-        docker_service.stop(container_name)
+        runtime = runtime_service.RuntimeManager(adapter)
+        result = runtime.stop(config, container_name)
+        if result.status == "not_found":
+            console.print(f"[yellow]Container '{container_name}' does not exist.[/yellow]")
+            return
         console.print(f"[green]✓[/green] Container stopped and removed: {container_name}")
+    except runtime_service.RuntimeUnavailable as e:
+        console.print(f"[red]{e}[/red]")
+        raise typer.Exit(1)
+    except runtime_service.RuntimeConflict as e:
+        console.print(f"[red]{e}[/red]")
+        raise typer.Exit(1)
     except Exception as e:
         console.print(f"[red]Failed to stop container:[/red] {e}")
         raise typer.Exit(1)

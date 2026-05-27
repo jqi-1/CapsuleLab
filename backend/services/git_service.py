@@ -4,7 +4,7 @@ from urllib.parse import urlparse
 
 import yaml
 from backend.services import project_service
-from backend.db.sqlite import register_project, list_projects
+from backend.db.repositories import projects
 from backend.models.errors import GitError_
 
 
@@ -22,6 +22,25 @@ def _run(args: list[str], cwd: str | None = None) -> str:
     if result.returncode != 0:
         raise GitError(result.stderr.strip() or f"Git exited with code {result.returncode}")
     return result.stdout.strip()
+
+
+def init_repo(project_path: str) -> dict:
+    path = str(Path(project_path).resolve())
+    _run(["git", "init"], cwd=path)
+    try:
+        _run(["git", "config", "user.name"], cwd=path)
+    except GitError:
+        _run(["git", "config", "user.name", "CapsuleLab"], cwd=path)
+    try:
+        _run(["git", "config", "user.email"], cwd=path)
+    except GitError:
+        _run(["git", "config", "user.email", "capsulelab@local"], cwd=path)
+    _run(["git", "add", "-A"], cwd=path)
+    if not _run(["git", "status", "--porcelain"], cwd=path).strip():
+        return {"status": "initialized", "path": path, "commit": ""}
+    _run(["git", "commit", "-m", "Initial commit"], cwd=path)
+    commit_hash = _run(["git", "rev-parse", "--short", "HEAD"], cwd=path)
+    return {"status": "initialized", "path": path, "commit": commit_hash}
 
 
 def git_status(project_path: str) -> dict:
@@ -233,7 +252,7 @@ def register_existing(project_path: str, name: str | None = None, scaffold: bool
         ensure_config(str(path), project_name)
     config = project_service.load_config(str(path))
     project_id = project_service.get_project_id(config.name)
-    register_project(project_id, config.name, str(path))
+    projects.register(project_id, config.name, str(path))
     return {
         "project_id": project_id,
         "name": config.name,
@@ -255,13 +274,13 @@ def repair_inventory(base_dir: str) -> list[dict]:
     repaired: list[dict] = []
     for project in project_service.find_projects(base_dir):
         project_id = project_service.get_project_id(project["name"])
-        register_project(project_id, project["name"], str(project["path"]))
+        projects.register(project_id, project["name"], str(project["path"]))
         repaired.append({"project_id": project_id, "name": project["name"], "path": str(project["path"])})
     return repaired
 
 
 def inventory() -> list[dict]:
-    return list_projects()
+    return projects.list()
 
 
 def _find_first(path: Path, names: list[str]) -> Path | None:

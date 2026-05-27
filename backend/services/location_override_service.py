@@ -1,21 +1,19 @@
 from pathlib import Path
-from backend.db import sqlite
+from backend.db.repositories import locations
 from backend.models.project import ProjectConfig, Dataset, Mount, Cache
 
 
 def resolve_dataset_path(dataset: Dataset, location_id: str | None, project_path: str) -> str:
     if location_id:
-        override = sqlite.get_location_override(location_id, "dataset", dataset.name)
+        override = locations.get_override(location_id, "dataset", dataset.name)
         if override:
             return override["value"]
-    if Path(dataset.path).is_absolute():
-        return dataset.path
-    return str(Path(project_path) / dataset.path)
+    return str(Path(project_path) / dataset.path) if not Path(dataset.path).is_absolute() else dataset.path
 
 
 def resolve_cache_path(cache: Cache, location_id: str | None) -> str:
     if location_id:
-        override = sqlite.get_location_override(location_id, "cache", cache.source)
+        override = locations.get_override(location_id, "cache", cache.source)
         if override:
             return override["value"]
     return str(Path(cache.source).expanduser())
@@ -24,7 +22,7 @@ def resolve_cache_path(cache: Cache, location_id: str | None) -> str:
 def resolve_secret_location(secret_name: str, location_id: str | None) -> str | None:
     if not location_id:
         return None
-    override = sqlite.get_location_override(location_id, "secret", secret_name)
+    override = locations.get_override(location_id, "secret", secret_name)
     if override:
         return override["value"]
     return None
@@ -52,6 +50,7 @@ def apply_location_overrides(
         resolved["datasets"].append({
             "name": dataset.name,
             "path": resolved_path,
+            "exists": Path(resolved_path).expanduser().exists() if not location_id else None,
             "target": dataset.target,
             "read_only": dataset.read_only,
         })
@@ -59,6 +58,7 @@ def apply_location_overrides(
         resolved_path = resolve_cache_path(cache, location_id)
         resolved["caches"].append({
             "source": resolved_path,
+            "exists": Path(resolved_path).expanduser().exists() if not location_id else None,
             "target": cache.target,
         })
     for secret in config.secrets:

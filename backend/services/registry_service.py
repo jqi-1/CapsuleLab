@@ -10,46 +10,64 @@ REGISTRY_CREDENTIALS = Path.home() / ".capsulelab" / "registry_credentials"
 @dataclass
 class RegistryInfo:
     name: str
+    host: str
     url: str
     description: str
     login_command: str
+    image_template: str
+    credential_hint: str
     requires_token: bool = False
 
 
 REGISTRIES: dict[str, RegistryInfo] = {
     "dockerhub": RegistryInfo(
         name="Docker Hub",
+        host="docker.io",
         url="https://hub.docker.com",
         description="Public container image registry by Docker",
         login_command="docker login",
+        image_template="{namespace}/{repository}:{tag}",
+        credential_hint="Use a Docker Hub username and password or access token.",
         requires_token=False,
     ),
     "ghcr": RegistryInfo(
         name="GitHub Container Registry",
+        host="ghcr.io",
         url="https://ghcr.io",
         description="Container registry integrated with GitHub packages",
         login_command="docker login ghcr.io",
+        image_template="ghcr.io/{namespace}/{repository}:{tag}",
+        credential_hint="Use your GitHub username and a personal access token with package permissions.",
         requires_token=True,
     ),
     "gitlab": RegistryInfo(
         name="GitLab Container Registry",
+        host="registry.gitlab.com",
         url="https://gitlab.com/users/sign_in",
         description="Container registry integrated with GitLab",
         login_command="docker login registry.gitlab.com",
+        image_template="registry.gitlab.com/{namespace}/{repository}:{tag}",
+        credential_hint="Use your GitLab username and a personal, project, or deploy token with registry permissions.",
         requires_token=True,
     ),
     "ngc": RegistryInfo(
         name="NVIDIA NGC",
+        host="nvcr.io",
         url="https://catalog.ngc.nvidia.com",
         description="NVIDIA GPU-optimized container registry",
         login_command="docker login nvcr.io",
+        image_template="nvcr.io/{namespace}/{repository}:{tag}",
+        credential_hint="Use '$oauthtoken' as the username and an NGC API key as the password.",
         requires_token=True,
     ),
     "huggingface": RegistryInfo(
         name="Hugging Face",
+        host="registry.hf.space",
         url="https://huggingface.co",
         description="Hugging Face model and container registry",
-        login_command="docker login registry.us-west-1.console.aws.amazon.com",  # placeholder
+        login_command="docker login registry.hf.space",
+        image_template="registry.hf.space/{namespace}-{repository}:{tag}",
+        credential_hint="Use your Hugging Face username and a token with write access.",
         requires_token=True,
     ),
 }
@@ -59,13 +77,56 @@ def list_registries() -> dict[str, dict[str, Any]]:
     return {
         key: {
             "name": r.name,
+            "host": r.host,
             "url": r.url,
             "description": r.description,
             "login_command": r.login_command,
+            "image_template": r.image_template,
+            "credential_hint": r.credential_hint,
             "requires_token": r.requires_token,
             "logged_in": _is_logged_in(r.login_command),
         }
         for key, r in REGISTRIES.items()
+    }
+
+
+def publish_plan(
+    registry_key: str,
+    source_image: str,
+    namespace: str,
+    repository: str,
+    tag: str = "latest",
+) -> dict:
+    reg = REGISTRIES.get(registry_key)
+    if not reg:
+        raise ValueError(f"Unknown registry '{registry_key}'. Available: {', '.join(REGISTRIES.keys())}")
+    if not source_image:
+        raise ValueError("source_image is required")
+    if not namespace:
+        raise ValueError("namespace is required")
+    if not repository:
+        raise ValueError("repository is required")
+    target_image = reg.image_template.format(namespace=namespace.strip("/"), repository=repository.strip("/"), tag=tag)
+    commands = [
+        reg.login_command,
+        f"docker tag {source_image} {target_image}",
+        f"docker push {target_image}",
+    ]
+    return {
+        "registry": registry_key,
+        "name": reg.name,
+        "host": reg.host,
+        "url": reg.url,
+        "requires_token": reg.requires_token,
+        "credential_hint": reg.credential_hint,
+        "source_image": source_image,
+        "target_image": target_image,
+        "commands": commands,
+        "notes": [
+            "Review the target image name before tagging.",
+            "Do not paste tokens into project files or shell history.",
+            "Use 'cap registry login' to authenticate, then tag and push.",
+        ],
     }
 
 

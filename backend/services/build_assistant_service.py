@@ -1,7 +1,7 @@
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
-from backend.db.sqlite import get_build_logs, get_project
+from backend.db.repositories import builds, projects
 
 
 READABLE_CONTEXT_FILES = [
@@ -64,7 +64,7 @@ class BuildAssistantReport:
 
 
 def analyze_failed_build(project_id: str, limit: int = 5) -> BuildAssistantReport:
-    row = get_project(project_id)
+    row = projects.get(project_id)
     if not row:
         raise ValueError(f"Project '{project_id}' not found")
     project_path = row["path"]
@@ -125,7 +125,7 @@ def apply_first_proposed_edit(project_id: str) -> dict:
 
 
 def _latest_failed_log(project_id: str, limit: int = 5) -> dict | None:
-    for row in get_build_logs(project_id, limit=limit):
+    for row in builds.get_logs(project_id, limit=limit):
         if row.get("status") == "failed":
             return row
     return None
