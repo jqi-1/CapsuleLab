@@ -1,7 +1,7 @@
 import pytest
 
-from backend.models.project import AppConfig, Mount, ProjectConfig, RuntimeConfig
-from backend.services import runtime_service
+from capsulelab.core.project import AppConfig, Mount, ProjectConfig, RuntimeConfig
+from capsulelab.services import runtime_service
 
 
 class FakeAdapter:

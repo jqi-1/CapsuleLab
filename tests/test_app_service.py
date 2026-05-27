@@ -1,14 +1,14 @@
 import pytest
-from backend.services import docker_service
-from backend.services.app_service import (
+from capsulelab.services import docker_service
+from capsulelab.services.app_service import (
     check_alive, check_port_available,
     get_app_url, get_proxy_app_url, create_share_url, list_share_urls,
     resolve_share_url, cleanup_expired_share_urls, revoke_share_url,
     build_start_command, get_app_config, get_app_status, AppError, ShareAccessError,
 )
-from backend.db import sqlite
-from backend.db.repositories import projects
-from backend.models.project import AppConfig
+from capsulelab.db import sqlite
+from capsulelab.db.repositories import projects
+from capsulelab.core.project import AppConfig
 
 
 def test_app_log_path():
@@ -75,8 +75,8 @@ def test_get_app_config_not_found():
 def test_get_app_status_includes_runtime_metadata(monkeypatch):
     cfg = AppConfig(name="Jupyter", id="jupyter", command="jupyter lab", port=8888)
 
-    monkeypatch.setattr("backend.services.app_service.docker_service.is_running", lambda _: False)
-    monkeypatch.setattr("backend.db.repositories.apps.get_state", lambda *_: None)
+    monkeypatch.setattr("capsulelab.services.app_service.docker_service.is_running", lambda _: False)
+    monkeypatch.setattr("capsulelab.db.repositories.apps.get_state", lambda *_: None)
 
     status = get_app_status("cap-demo", cfg, "cap-demo")
 
@@ -142,7 +142,7 @@ def test_cleanup_expired_share_urls(monkeypatch, tmp_path):
     projects.register("cap-demo", "demo", str(tmp_path))
     cfg = AppConfig(name="Jupyter", id="jupyter", command="jupyter lab", port=8888)
     share = create_share_url("cap-demo", cfg, hours=1)
-    from backend.db.repositories import shares
+    from capsulelab.db.repositories import shares
     with sqlite.get_db() as conn:
         conn.execute("UPDATE app_shares SET expires_at = '2000-01-01T00:00:00+00:00' WHERE token = ?", (share["token"],))
 
@@ -161,14 +161,14 @@ def test_get_app_status_marks_stale_running_state_failed(monkeypatch):
     cfg = AppConfig(name="Jupyter", id="jupyter", command="jupyter lab", port=8888)
     updates = []
 
-    monkeypatch.setattr("backend.services.app_service.docker_service.is_running", lambda _: True)
+    monkeypatch.setattr("capsulelab.services.app_service.docker_service.is_running", lambda _: True)
     monkeypatch.setattr(
-        "backend.db.repositories.apps.get_state",
+        "capsulelab.db.repositories.apps.get_state",
         lambda *_: {"status": "running", "pid": 123, "port": 8888},
     )
-    monkeypatch.setattr("backend.services.app_service.check_alive", lambda *_: False)
+    monkeypatch.setattr("capsulelab.services.app_service.check_alive", lambda *_: False)
     monkeypatch.setattr(
-        "backend.db.repositories.apps.set_state",
+        "capsulelab.db.repositories.apps.set_state",
         lambda *args, **kwargs: updates.append((args, kwargs)),
     )
 

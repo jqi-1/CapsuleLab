@@ -1,4 +1,4 @@
-from backend.services import ide_service
+from capsulelab.services import ide_service
 
 
 def test_setup_cursor_writes_ai_workbench_rules(tmp_path):

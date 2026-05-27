@@ -2,7 +2,7 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
-from backend.services import metadata_service
+from capsulelab.services import metadata_service
 
 console = Console()
 metadata_cmd = typer.Typer(name="metadata", help="Backup and restore local CapsuleLab metadata", no_args_is_help=True)

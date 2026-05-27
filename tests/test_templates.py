@@ -1,7 +1,7 @@
 import pytest
 import yaml
 from pathlib import Path
-from backend.models.project import ProjectConfig, AppConfig
+from capsulelab.core.project import ProjectConfig, AppConfig
 
 TEMPLATES_DIR = Path(__file__).resolve().parent.parent / "templates"
 MAINTAINED_TEMPLATES = ["python-basic", "pytorch-cuda", "streamlit-dashboard", "research-rag", "deployable-fastapi", "opensource-python-package"]

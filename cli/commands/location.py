@@ -1,9 +1,9 @@
 import typer
 from rich.console import Console
 from rich.table import Table
-from backend.services import ssh_service, location_override_service
-from backend.db.sqlite import init_db
-from backend.db.repositories import locations
+from capsulelab.services import ssh_service, location_override_service
+from capsulelab.db.sqlite import init_db
+from capsulelab.db.repositories import locations
 
 console = Console()
 location_cmd = typer.Typer(name="location", help="Manage remote execution locations", no_args_is_help=True)
@@ -202,7 +202,7 @@ def location_check(
             )
 
     if path and status.reachable:
-        from backend.services import project_service
+        from capsulelab.services import project_service
         try:
             project_path = project_service.resolve_project_path(path)
             config = project_service.load_config(project_path)

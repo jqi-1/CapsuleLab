@@ -1,17 +1,15 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from backend.db.sqlite import init_db
+from capsulelab.db.sqlite import init_db
 from backend.api import projects, apps, logs, compose, locations, backlog, resources, registry, models, metadata, settings
-from backend.services import docker_service, gpu_service
+from backend.config import settings as app_settings
+from capsulelab.services import docker_service, gpu_service
 
 app = FastAPI(title="CapsuleLab API", version="0.1.0")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",
-        "http://127.0.0.1:5173",
-    ],
+    allow_origins=app_settings.cors_origins,
     allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -42,7 +40,7 @@ def health():
 
 @app.get("/api/profiles")
 def list_profiles():
-    from backend.services import profile_service
+    from capsulelab.services import profile_service
     return profile_service.list_profiles()
 
 

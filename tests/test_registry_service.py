@@ -1,7 +1,7 @@
 from fastapi import HTTPException
 
 from backend.api import registry
-from backend.services import registry_service
+from capsulelab.services import registry_service
 
 
 def test_publish_plan_for_ghcr_includes_login_tag_and_push():

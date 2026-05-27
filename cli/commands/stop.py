@@ -1,7 +1,7 @@
 import typer
 from rich.console import Console
-from backend.services import project_service, runtime_service
-from backend.db.repositories import locations
+from capsulelab.services import project_service, runtime_service
+from capsulelab.db.repositories import locations
 
 console = Console()
 

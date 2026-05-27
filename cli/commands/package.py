@@ -1,6 +1,6 @@
 import typer
 from rich.console import Console
-from backend.services import package_service, project_service
+from capsulelab.services import package_service, project_service
 
 console = Console()
 package_cmd = typer.Typer(name="package", help="Export/import project capsules", no_args_is_help=True)

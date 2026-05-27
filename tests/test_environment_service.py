@@ -1,6 +1,6 @@
 import yaml
 
-from backend.services import environment_service
+from capsulelab.services import environment_service
 
 
 def write_project(tmp_path):

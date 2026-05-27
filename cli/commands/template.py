@@ -2,7 +2,7 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
-from backend.services import template_service
+from capsulelab.services import template_service
 
 console = Console()
 template_cmd = typer.Typer(name="template", help="Validate maintained project templates", no_args_is_help=True)

@@ -1,5 +1,5 @@
-from backend.db import sqlite
-from backend.services import secrets_service
+from capsulelab.db import sqlite
+from capsulelab.services import secrets_service
 
 
 def test_default_secret_upsert_does_not_duplicate(monkeypatch, tmp_path):

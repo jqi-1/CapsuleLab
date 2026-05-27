@@ -2,7 +2,7 @@ import typer
 from pathlib import Path
 from rich.console import Console
 from rich.table import Table
-from backend.services import project_service, compose_service
+from capsulelab.services import project_service, compose_service
 
 console = Console()
 compose_cmd = typer.Typer(name="compose", help="Manage Docker Compose services", no_args_is_help=True)

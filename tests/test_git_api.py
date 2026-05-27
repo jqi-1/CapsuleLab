@@ -125,7 +125,7 @@ def test_graph_inspect_endpoint_maps_missing_node(monkeypatch):
 
 
 def test_agent_action_endpoints_round_trip(monkeypatch):
-    from backend.services import agent_service
+    from capsulelab.services import agent_service
 
     monkeypatch.setattr(backlog.projects, "get", lambda project_id: {"id": project_id, "name": "demo", "path": "/tmp/demo"})
     monkeypatch.setattr(backlog.project_service, "load_config", lambda path: object())

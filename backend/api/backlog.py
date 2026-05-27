@@ -1,9 +1,9 @@
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
-from backend.db.repositories import projects
-from backend.models.project import ProjectConfig
-from backend.services import (
+from capsulelab.db.repositories import projects
+from capsulelab.core.project import ProjectConfig
+from capsulelab.services import (
     git_service,
     image_service,
     resource_service,
@@ -179,7 +179,7 @@ def project_doctor(project_id: str):
 @router.get("/profile")
 def project_profile(project_id: str):
     row, config = _project(project_id)
-    from backend.services import profile_service
+    from capsulelab.services import profile_service
     return profile_service.get_profile(config.mode)
 
 
@@ -223,7 +223,7 @@ def project_graph_summary(project_id: str):
 @router.post("/agent/context")
 def build_agent_context(project_id: str):
     _project(project_id)
-    from backend.services import agent_service
+    from capsulelab.services import agent_service
     ctx = agent_service.build_project_context(project_id)
     return _agent_context_response(ctx)
 
@@ -231,7 +231,7 @@ def build_agent_context(project_id: str):
 @router.get("/agent/context")
 def get_agent_context(project_id: str):
     _project(project_id)
-    from backend.services import agent_service
+    from capsulelab.services import agent_service
     ctx = agent_service.get_context(project_id)
     if not ctx:
         ctx = agent_service.build_project_context(project_id)
@@ -240,7 +240,7 @@ def get_agent_context(project_id: str):
 
 @router.get("/agent/catalog")
 def agent_catalog(project_id: str):
-    from backend.services import agent_service
+    from capsulelab.services import agent_service
     return agent_service.catalog_contexts()
 
 
@@ -266,7 +266,7 @@ def _agent_context_response(ctx):
 def list_agent_actions(project_id: str):
     _project(project_id)
     from dataclasses import asdict
-    from backend.services import agent_service
+    from capsulelab.services import agent_service
     return [asdict(action) for action in agent_service.list_actions(project_id)]
 
 
@@ -274,7 +274,7 @@ def list_agent_actions(project_id: str):
 def propose_agent_action(project_id: str, req: AgentActionRequest):
     _project(project_id)
     from dataclasses import asdict
-    from backend.services import agent_service
+    from capsulelab.services import agent_service
     try:
         return asdict(agent_service.propose_action(project_id, req.action_type, req.title, req.rationale, req.files))
     except ValueError as e:
@@ -285,7 +285,7 @@ def propose_agent_action(project_id: str, req: AgentActionRequest):
 def review_agent_action(project_id: str, action_id: str, req: AgentActionReviewRequest):
     _project(project_id)
     from dataclasses import asdict
-    from backend.services import agent_service
+    from capsulelab.services import agent_service
     try:
         return asdict(agent_service.review_action(project_id, action_id, req.approved, req.reviewer, req.note))
     except ValueError as e:

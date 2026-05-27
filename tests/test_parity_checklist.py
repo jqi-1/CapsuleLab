@@ -1,8 +1,8 @@
 import pytest
 
-from backend.models.project import ProjectConfig, RuntimeConfig, AppConfig, RuntimeType
-from backend.services import project_service, app_service, doctor_service
-from backend.services.doctor_service import DoctorCheck, Severity
+from capsulelab.core.project import ProjectConfig, RuntimeConfig, AppConfig, RuntimeType
+from capsulelab.services import project_service, app_service, doctor_service
+from capsulelab.services.doctor_service import DoctorCheck, Severity
 
 
 class TestParityChecklist:
@@ -84,7 +84,7 @@ class TestParityChecklist:
 
     @pytest.mark.pure_config
     def test_error_model_shape(self):
-        from backend.models.errors import CapsuleLabError, ErrorCode, Severity
+        from capsulelab.core.errors import CapsuleLabError, ErrorCode, Severity
         err = CapsuleLabError(ErrorCode.BAD_CONFIG, "test error", severity=Severity.ERROR, detail="detail", suggestion="fix it")
         d = err.to_dict()
         assert "error_code" in d

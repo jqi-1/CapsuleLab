@@ -1,8 +1,8 @@
 import typer
 from rich.console import Console
-from backend.services import docker_service, project_service, ssh_service
-from backend.services.docker_service import parse_image_tag
-from backend.db.repositories import builds, locations
+from capsulelab.services import docker_service, project_service, ssh_service
+from capsulelab.services.docker_service import parse_image_tag
+from capsulelab.db.repositories import builds, locations
 
 console = Console()
 

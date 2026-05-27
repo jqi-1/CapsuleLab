@@ -2,8 +2,8 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import Optional
 
-from backend.db.repositories import locations
-from backend.services import ssh_service, location_override_service
+from capsulelab.db.repositories import locations
+from capsulelab.services import ssh_service, location_override_service
 
 router = APIRouter()
 

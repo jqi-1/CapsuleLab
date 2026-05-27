@@ -1,8 +1,8 @@
 from pathlib import Path
 
-from backend.db import sqlite
-from backend.db.repositories import projects, builds
-from backend.services import build_assistant_service
+from capsulelab.db import sqlite
+from capsulelab.db.repositories import projects, builds
+from capsulelab.services import build_assistant_service
 
 
 def _setup_project(monkeypatch, tmp_path):

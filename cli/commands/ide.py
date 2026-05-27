@@ -2,7 +2,7 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
-from backend.services import ide_service, project_service
+from capsulelab.services import ide_service, project_service
 
 console = Console()
 ide_cmd = typer.Typer(name="ide", help="Set up and attach native IDEs", no_args_is_help=True)

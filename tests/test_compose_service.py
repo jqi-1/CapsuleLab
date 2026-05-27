@@ -1,6 +1,6 @@
 import subprocess
 
-from backend.services import compose_service
+from capsulelab.services import compose_service
 
 
 def test_find_compose_file(tmp_path):

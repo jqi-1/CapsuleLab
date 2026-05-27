@@ -1,9 +1,9 @@
 from fastapi import HTTPException
 
 from backend.api import metadata
-from backend.db import sqlite
-from backend.db.repositories import projects, secrets
-from backend.services import metadata_service
+from capsulelab.db import sqlite
+from capsulelab.db.repositories import projects, secrets
+from capsulelab.services import metadata_service
 
 
 def test_backup_and_restore_excludes_secrets_by_default(tmp_path, monkeypatch):

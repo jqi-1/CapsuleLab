@@ -1,5 +1,5 @@
 import pytest
-from backend.services import gpu_service
+from capsulelab.services import gpu_service
 
 
 @pytest.mark.docker

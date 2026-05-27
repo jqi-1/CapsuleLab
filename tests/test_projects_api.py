@@ -1,7 +1,7 @@
 from fastapi import HTTPException
 
 from backend.api import projects
-from backend.models.project import ProjectConfig, RuntimeConfig
+from capsulelab.core.project import ProjectConfig, RuntimeConfig
 
 
 def test_import_project_endpoint_uses_git_import(monkeypatch):
@@ -43,8 +43,8 @@ def test_import_project_endpoint_maps_missing_path_to_404(monkeypatch):
 def test_delete_project_removes_existing_inventory_row(monkeypatch):
     removed = []
 
-    monkeypatch.setattr("backend.db.repositories.projects.get", lambda project_id: {"id": project_id, "name": "demo", "path": "/tmp/demo"})
-    monkeypatch.setattr("backend.db.repositories.projects.remove", lambda project_id: removed.append(project_id))
+    monkeypatch.setattr("capsulelab.db.repositories.projects.get", lambda project_id: {"id": project_id, "name": "demo", "path": "/tmp/demo"})
+    monkeypatch.setattr("capsulelab.db.repositories.projects.remove", lambda project_id: removed.append(project_id))
 
     result = projects.delete_project("cap-demo")
 
@@ -53,7 +53,7 @@ def test_delete_project_removes_existing_inventory_row(monkeypatch):
 
 
 def test_delete_project_404s_for_missing_inventory_row(monkeypatch):
-    monkeypatch.setattr("backend.db.repositories.projects.get", lambda project_id: None)
+    monkeypatch.setattr("capsulelab.db.repositories.projects.get", lambda project_id: None)
 
     try:
         projects.delete_project("cap-missing")
@@ -66,7 +66,7 @@ def test_delete_project_404s_for_missing_inventory_row(monkeypatch):
 def test_setup_ide_endpoint_uses_project_path(monkeypatch):
     calls = {}
 
-    monkeypatch.setattr("backend.db.repositories.projects.get", lambda project_id: {"id": project_id, "name": "demo", "path": "/tmp/demo"})
+    monkeypatch.setattr("capsulelab.db.repositories.projects.get", lambda project_id: {"id": project_id, "name": "demo", "path": "/tmp/demo"})
 
     def fake_setup(path, ide, project_name=None):
         calls.update({"path": path, "ide": ide, "project_name": project_name})
@@ -81,7 +81,7 @@ def test_setup_ide_endpoint_uses_project_path(monkeypatch):
 
 
 def test_ide_instructions_endpoint_maps_unknown_ide(monkeypatch):
-    monkeypatch.setattr("backend.db.repositories.projects.get", lambda project_id: {"id": project_id, "name": "demo", "path": "/tmp/demo"})
+    monkeypatch.setattr("capsulelab.db.repositories.projects.get", lambda project_id: {"id": project_id, "name": "demo", "path": "/tmp/demo"})
 
     def fake_instructions(*args, **kwargs):
         raise ValueError("Unsupported IDE")
@@ -97,7 +97,7 @@ def test_ide_instructions_endpoint_maps_unknown_ide(monkeypatch):
 
 
 def test_project_status_returns_full_status(monkeypatch):
-    monkeypatch.setattr("backend.db.repositories.projects.get", lambda project_id: {"id": project_id, "name": "demo", "path": "/tmp/demo"})
+    monkeypatch.setattr("capsulelab.db.repositories.projects.get", lambda project_id: {"id": project_id, "name": "demo", "path": "/tmp/demo"})
     monkeypatch.setattr(projects.project_service, "load_config", lambda path: ProjectConfig(name="demo", runtime=RuntimeConfig(image="demo:dev")))
     monkeypatch.setattr(projects.project_service, "validate", lambda config, path: [])
     monkeypatch.setattr(projects.docker_service, "check_docker_status", lambda: type("DockerStatus", (), {
@@ -115,7 +115,7 @@ def test_project_status_returns_full_status(monkeypatch):
         "gpu": {"available": False, "gpus": []},
     })
     monkeypatch.setattr(projects.compose_service, "status", lambda path: {"detected": False})
-    monkeypatch.setattr("backend.db.repositories.builds.get_metadata", lambda project_id: None)
+    monkeypatch.setattr("capsulelab.db.repositories.builds.get_metadata", lambda project_id: None)
     monkeypatch.setattr(projects.secrets_service, "list_secret_presence", lambda project_id: [])
     monkeypatch.setattr(projects.secrets_service, "missing_required_secrets", lambda project_id, config: [])
 
@@ -129,7 +129,7 @@ def test_project_status_returns_full_status(monkeypatch):
 
 
 def test_project_environment_endpoint_uses_project_path(monkeypatch):
-    monkeypatch.setattr("backend.db.repositories.projects.get", lambda project_id: {"id": project_id, "name": "demo", "path": "/tmp/demo"})
+    monkeypatch.setattr("capsulelab.db.repositories.projects.get", lambda project_id: {"id": project_id, "name": "demo", "path": "/tmp/demo"})
     monkeypatch.setattr(projects.environment_service, "describe", lambda path: {"path": path, "dependencies": [], "environment": {}})
 
     result = projects.project_environment("cap-demo")
@@ -138,7 +138,7 @@ def test_project_environment_endpoint_uses_project_path(monkeypatch):
 
 
 def test_add_project_dependency_endpoint_maps_validation_error(monkeypatch):
-    monkeypatch.setattr("backend.db.repositories.projects.get", lambda project_id: {"id": project_id, "name": "demo", "path": "/tmp/demo"})
+    monkeypatch.setattr("capsulelab.db.repositories.projects.get", lambda project_id: {"id": project_id, "name": "demo", "path": "/tmp/demo"})
 
     def fake_add(*args, **kwargs):
         raise ValueError("bad dependency")
@@ -155,7 +155,7 @@ def test_add_project_dependency_endpoint_maps_validation_error(monkeypatch):
 
 def test_set_project_environment_variable_endpoint(monkeypatch):
     calls = {}
-    monkeypatch.setattr("backend.db.repositories.projects.get", lambda project_id: {"id": project_id, "name": "demo", "path": "/tmp/demo"})
+    monkeypatch.setattr("capsulelab.db.repositories.projects.get", lambda project_id: {"id": project_id, "name": "demo", "path": "/tmp/demo"})
 
     def fake_set(path, name, value):
         calls.update({"path": path, "name": name, "value": value})

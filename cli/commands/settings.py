@@ -2,7 +2,7 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
-from backend.services import settings_service
+from capsulelab.services import settings_service
 
 console = Console()
 settings_cmd = typer.Typer(name="settings", help="Manage local CapsuleLab preferences", no_args_is_help=True)

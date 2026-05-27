@@ -4,8 +4,8 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
-from backend.db.sqlite import init_db
-from backend.services import project_service, secrets_service
+from capsulelab.db.sqlite import init_db
+from capsulelab.services import project_service, secrets_service
 
 console = Console()
 secrets_cmd = typer.Typer(name="secrets", help="Manage local project secrets without writing values to the repo", no_args_is_help=True)

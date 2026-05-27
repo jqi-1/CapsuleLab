@@ -2,7 +2,7 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
-from backend.services import image_service, project_service
+from capsulelab.services import image_service, project_service
 
 console = Console()
 images_cmd = typer.Typer(name="images", help="Inspect base image options and Dockerfile inputs", no_args_is_help=True)

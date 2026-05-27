@@ -1,5 +1,5 @@
-from backend.models.project import Cache, Dataset, ProjectConfig, RuntimeConfig, SecretRef
-from backend.services import location_override_service
+from capsulelab.core.project import Cache, Dataset, ProjectConfig, RuntimeConfig, SecretRef
+from capsulelab.services import location_override_service
 
 
 def test_apply_location_overrides_uses_local_fallbacks(tmp_path):

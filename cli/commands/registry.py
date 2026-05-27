@@ -1,7 +1,7 @@
 import typer
 from rich.console import Console
 from rich.table import Table
-from backend.services import registry_service
+from capsulelab.services import registry_service
 
 console = Console()
 registry_cmd = typer.Typer(name="registry", help="Container registry operations")

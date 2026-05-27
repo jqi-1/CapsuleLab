@@ -1,7 +1,7 @@
 from fastapi import HTTPException
 
 from backend.api import models
-from backend.services import model_service
+from capsulelab.services import model_service
 
 
 def test_register_list_verify_and_remove_model(tmp_path, monkeypatch):

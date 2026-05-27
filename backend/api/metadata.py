@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
-from backend.services import metadata_service
+from capsulelab.services import metadata_service
 
 router = APIRouter()
 

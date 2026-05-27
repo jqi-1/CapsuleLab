@@ -3,7 +3,7 @@ import tarfile
 
 import yaml
 
-from backend.services import package_service
+from capsulelab.services import package_service
 
 
 def test_export_redacts_environment_and_machine_paths(tmp_path, monkeypatch):

@@ -3,9 +3,9 @@ import os
 from pathlib import Path
 from rich.console import Console
 from rich.table import Table
-from backend.services import project_service, template_service
-from backend.db.sqlite import init_db
-from backend.db.repositories import projects
+from capsulelab.services import project_service, template_service
+from capsulelab.db.sqlite import init_db
+from capsulelab.db.repositories import projects
 
 console = Console()
 TEMPLATES_DIR = Path(__file__).resolve().parent.parent.parent / "templates"
@@ -92,7 +92,7 @@ def init(
             with open(config_path) as f:
                 cfg_data = yaml.safe_load(f)
             cfg_data["mode"] = mode
-            from backend.models.project import default_presets, ProjectMode
+            from capsulelab.models.project import default_presets, ProjectMode
             pm = ProjectMode(mode) if mode in ("research", "deployable", "opensource") else None
             if pm:
                 cfg_data["presets"] = default_presets(pm)

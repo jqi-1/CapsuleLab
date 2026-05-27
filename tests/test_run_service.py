@@ -1,6 +1,6 @@
-from backend.db import sqlite
-from backend.db.repositories import projects, runs
-from backend.services import run_service
+from capsulelab.db import sqlite
+from capsulelab.db.repositories import projects, runs
+from capsulelab.services import run_service
 
 
 def test_finish_run_can_be_scoped_to_project(monkeypatch, tmp_path):

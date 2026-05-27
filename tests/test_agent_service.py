@@ -1,7 +1,7 @@
 import json
 
-from backend.models.errors import Severity
-from backend.services import agent_service, graph_service
+from capsulelab.core.errors import Severity
+from capsulelab.services import agent_service, graph_service
 
 
 class FakeCheck:

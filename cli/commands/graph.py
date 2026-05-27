@@ -1,8 +1,8 @@
 import typer
 from rich.console import Console
 from rich.table import Table
-from backend.services import graph_service, project_service
-from backend.db.repositories import projects
+from capsulelab.services import graph_service, project_service
+from capsulelab.db.repositories import projects
 
 console = Console()
 

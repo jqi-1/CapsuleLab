@@ -1,7 +1,7 @@
 from pathlib import Path
 import yaml
 
-from backend.services import git_service
+from capsulelab.services import git_service
 
 
 def test_ensure_config_scaffolds_project_yaml(tmp_path):
@@ -106,7 +106,7 @@ def test_register_existing_returns_detection_and_registers(monkeypatch, tmp_path
     def fake_register(project_id, name, path):
         registered.update({"project_id": project_id, "name": name, "path": path})
 
-    monkeypatch.setattr("backend.db.repositories.projects.register", fake_register)
+    monkeypatch.setattr("capsulelab.db.repositories.projects.register", fake_register)
     (tmp_path / "requirements.txt").write_text("jupyterlab==4.2.0\n")
 
     result = git_service.register_existing(str(tmp_path), name="demo")

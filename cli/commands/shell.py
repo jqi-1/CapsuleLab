@@ -1,6 +1,6 @@
 import typer
 from rich.console import Console
-from backend.services import project_service, docker_service
+from capsulelab.services import project_service, docker_service
 
 console = Console()
 

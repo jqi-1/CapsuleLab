@@ -1,8 +1,8 @@
 from fastapi import HTTPException
 
 from backend.api import settings
-from backend.db import sqlite
-from backend.services import settings_service
+from capsulelab.db import sqlite
+from capsulelab.services import settings_service
 
 
 def test_settings_defaults_set_get_and_remove(tmp_path, monkeypatch):

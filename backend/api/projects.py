@@ -3,13 +3,13 @@ from pydantic import BaseModel
 from pathlib import Path
 from typing import Optional
 
-from backend.services import (
+from capsulelab.services import (
     project_service, docker_service, gpu_service, app_service,
     compose_service, git_service, resource_service, secrets_service,
     build_assistant_service, ide_service, environment_service, runtime_service,
 )
-from backend.services.docker_service import parse_image_tag
-from backend.db.repositories import projects, builds, apps
+from capsulelab.services.docker_service import parse_image_tag
+from capsulelab.db.repositories import projects, builds, apps
 
 router = APIRouter()
 
@@ -82,7 +82,7 @@ def create_project(req: CreateProjectRequest):
             with open(config_path) as f:
                 cfg_data = yaml.safe_load(f)
             cfg_data["mode"] = req.mode
-            from backend.models.project import default_presets, ProjectMode
+            from capsulelab.core.project import default_presets, ProjectMode
             pm = ProjectMode(req.mode) if req.mode in ("research", "deployable", "opensource") else None
             if pm:
                 cfg_data["presets"] = default_presets(pm)

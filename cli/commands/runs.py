@@ -2,8 +2,8 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
-from backend.db.sqlite import init_db
-from backend.services import project_service, run_service
+from capsulelab.db.sqlite import init_db
+from capsulelab.services import project_service, run_service
 
 console = Console()
 runs_cmd = typer.Typer(name="runs", help="Track lightweight local experiment runs", no_args_is_help=True)

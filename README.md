@@ -91,8 +91,10 @@ cap app open jupyter
 ### Start the API server
 
 ```bash
-uvicorn backend.main:app --reload
+uvicorn backend.main:app --reload --host 127.0.0.1 --port 8000
 ```
+
+> The API binds to `127.0.0.1` by default for security. Do not expose it to a network.
 
 ### Start the frontend
 

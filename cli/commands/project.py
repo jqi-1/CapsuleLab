@@ -2,8 +2,8 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
-from backend.db.repositories import projects
-from backend.services import git_service, project_service
+from capsulelab.db.repositories import projects
+from capsulelab.services import git_service, project_service
 
 console = Console()
 project_cmd = typer.Typer(name="project", help="Import and repair project inventory", no_args_is_help=True)

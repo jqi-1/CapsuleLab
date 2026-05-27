@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from backend.services import template_service
+from capsulelab.services import template_service
 
 
 def test_validate_catalog_includes_maintained_templates():

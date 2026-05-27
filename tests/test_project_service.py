@@ -3,8 +3,8 @@ from pathlib import Path
 import tempfile
 import os
 import yaml
-from backend.services import project_service
-from backend.models.project import ProjectConfig, RuntimeConfig, AppConfig
+from capsulelab.services import project_service
+from capsulelab.core.project import ProjectConfig, RuntimeConfig, AppConfig
 
 
 @pytest.mark.pure_config

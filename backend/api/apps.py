@@ -2,8 +2,8 @@ import http.client
 
 from fastapi import APIRouter, HTTPException, Request, Response
 from pydantic import BaseModel
-from backend.services import project_service, app_service
-from backend.db.repositories import projects
+from capsulelab.services import project_service, app_service
+from capsulelab.db.repositories import projects
 
 router = APIRouter()
 

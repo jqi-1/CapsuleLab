@@ -1,8 +1,8 @@
 import yaml
 
-from backend.services import doctor_service
-from backend.services.docker_service import DockerStatus
-from backend.services.gpu_service import GpuInfo
+from capsulelab.services import doctor_service
+from capsulelab.services.docker_service import DockerStatus
+from capsulelab.services.gpu_service import GpuInfo
 
 
 def _write_project(path, config=None):
@@ -27,8 +27,8 @@ def _write_project(path, config=None):
 
 
 def _stub_external_checks(monkeypatch):
-    monkeypatch.setattr("backend.db.repositories.projects.list", lambda: [])
-    monkeypatch.setattr("backend.db.repositories.builds.get_metadata", lambda project_id: None)
+    monkeypatch.setattr("capsulelab.db.repositories.projects.list", lambda: [])
+    monkeypatch.setattr("capsulelab.db.repositories.builds.get_metadata", lambda project_id: None)
     monkeypatch.setattr(
         doctor_service.docker_service,
         "check_docker_status",

@@ -2,7 +2,7 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
-from backend.services import build_assistant_service, project_service
+from capsulelab.services import build_assistant_service, project_service
 
 console = Console()
 

@@ -1,7 +1,7 @@
 import typer
 from rich.console import Console
 from rich.table import Table
-from backend.services import profile_service
+from capsulelab.services import profile_service
 
 console = Console()
 
@@ -10,7 +10,7 @@ def profile(
     mode: str = typer.Argument(None, help="Profile mode: research, deployable, opensource"),
 ):
     if mode:
-        from backend.models.project import ProjectMode
+        from capsulelab.models.project import ProjectMode
         try:
             pm = ProjectMode(mode)
         except ValueError:

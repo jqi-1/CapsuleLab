@@ -5,7 +5,7 @@ from backend.api import locations
 
 def test_location_tunnel_endpoint_returns_tunnel(monkeypatch):
     loc = {"id": "loc-demo", "name": "demo", "host": "example.test", "user": "alice"}
-    monkeypatch.setattr("backend.db.repositories.locations.get_by_name", lambda name: loc)
+    monkeypatch.setattr("capsulelab.db.repositories.locations.get_by_name", lambda name: loc)
     monkeypatch.setattr(
         locations.ssh_service,
         "tunnel_info",
@@ -18,7 +18,7 @@ def test_location_tunnel_endpoint_returns_tunnel(monkeypatch):
 
 
 def test_location_tunnel_endpoint_404s_for_missing_location(monkeypatch):
-    monkeypatch.setattr("backend.db.repositories.locations.get_by_name", lambda name: None)
+    monkeypatch.setattr("capsulelab.db.repositories.locations.get_by_name", lambda name: None)
 
     try:
         locations.location_tunnel("missing")
@@ -37,7 +37,7 @@ def test_location_status_reports_project_root_and_disk(monkeypatch):
         "project_root": "/srv/capsules",
         "gpu": 0,
     }
-    monkeypatch.setattr("backend.db.repositories.locations.get_by_name", lambda name: loc)
+    monkeypatch.setattr("capsulelab.db.repositories.locations.get_by_name", lambda name: loc)
     monkeypatch.setattr(
         locations.ssh_service,
         "check_status",

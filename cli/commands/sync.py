@@ -1,7 +1,7 @@
 import typer
 from rich.console import Console
-from backend.services import project_service, ssh_service
-from backend.db.repositories import locations
+from capsulelab.services import project_service, ssh_service
+from capsulelab.db.repositories import locations
 
 console = Console()
 sync_cmd = typer.Typer(name="sync", help="Sync project to a remote location", no_args_is_help=True)

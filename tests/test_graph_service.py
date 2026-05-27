@@ -1,4 +1,4 @@
-from backend.services import graph_service
+from capsulelab.services import graph_service
 
 
 def test_index_project_builds_native_python_graph(tmp_path, monkeypatch):

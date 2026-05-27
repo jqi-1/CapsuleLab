@@ -2,8 +2,8 @@ import typer
 import webbrowser
 from rich.console import Console
 from rich.table import Table
-from backend.services import docker_service, project_service, app_service
-from backend.db.repositories import apps
+from capsulelab.services import docker_service, project_service, app_service
+from capsulelab.db.repositories import apps
 
 console = Console()
 app_cmd = typer.Typer(name="app", help="Manage apps inside a project container", no_args_is_help=True)

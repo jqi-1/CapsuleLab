@@ -1,4 +1,4 @@
-from backend.services import image_service, resource_service
+from capsulelab.services import image_service, resource_service
 import subprocess
 
 

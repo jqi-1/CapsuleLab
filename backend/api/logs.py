@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException, Query
-from backend.services import docker_service, project_service, app_service
-from backend.db.repositories import projects
+from capsulelab.services import docker_service, project_service, app_service
+from capsulelab.db.repositories import projects
 
 router = APIRouter()
 

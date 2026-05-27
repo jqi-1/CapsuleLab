@@ -2,7 +2,7 @@ import json as json_mod
 import typer
 from rich.console import Console
 from rich.table import Table
-from backend.services import project_service, doctor_service
+from capsulelab.services import project_service, doctor_service
 
 console = Console()
 
