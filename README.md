@@ -24,6 +24,31 @@ Designed for the workflow:
 Project → Environment → Build → Run → Apps → Logs → Git → Remote Machine
 ```
 
+## Status
+
+CapsuleLab is an early prototype.
+
+### Working now
+- `cap init` — create a new project from a template
+- `cap doctor` — validate Docker, GPU, Git, and project configuration
+- Basic Docker build/start/stop lifecycle
+- Project template creation (python-basic, pytorch-cuda, streamlit-dashboard, etc.)
+- Local FastAPI health endpoint
+- Early React dashboard shell with project list and location management
+
+### Experimental
+- Remote SSH locations and deployment
+- App launchers (Jupyter, Streamlit, VS Code Server)
+- Experiment run tracking
+- Image registry management
+- Knowledge graph indexing
+
+### Planned
+- Full agent orchestrator dashboard
+- Project knowledge graph UI
+- Deployment mode automation
+- Package export/import (capsule snapshots)
+
 ## Features
 
 - **Project profiles** — `research`, `deployable`, and `opensource` modes tune templates, validation, and dashboard emphasis without splitting the product
@@ -174,6 +199,17 @@ pytest -m ssh                   # tests requiring SSH host
 ## Motivation
 
 CapsuleLab is inspired by the category NVIDIA AI Workbench defined, but built as a distinct product: different config schema, visual language, template model, and agent-native features. It is designed for **local-first, portable reproducibility** — the same capsule runs on your laptop, a DGX Spark, a gaming PC, or a cloud GPU server with minimal changes.
+
+## Security Model
+
+CapsuleLab's API is intended for trusted local use only.
+Do not expose the API server directly to a network.
+
+- The API binds to `127.0.0.1` by default (not `0.0.0.0`)
+- CORS is restricted to localhost origins only
+- Remote execution requires explicit user-configured SSH locations
+- Secrets are never logged, copied into generated Dockerfiles, or written into project manifests
+- Container runtime access (Docker socket) is scoped to user-configured projects
 
 ## License
 

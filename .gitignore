@@ -1,8 +1,19 @@
 .tmp/
 .understand-anything/
+.venv/
+.env
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
 __pycache__/
 *.py[cod]
 *.egg-info/
+*.egg
+dist/
+build/
+coverage/
+.coverage
+htmlcov/
 
 frontend/node_modules/
 frontend/dist/
