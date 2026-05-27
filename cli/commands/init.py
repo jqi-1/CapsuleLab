@@ -66,7 +66,16 @@ def init(
             console.print(f"Available templates: {', '.join(available)}")
         raise typer.Exit(1)
 
-    dest = path or os.path.join(os.getcwd(), name)
+    if path:
+        dest = path
+    else:
+        capsulelab_root = TEMPLATES_DIR.parent
+        cwd = Path.cwd().resolve()
+        if capsulelab_root in cwd.parents or cwd == capsulelab_root:
+            base = capsulelab_root.parent
+        else:
+            base = cwd
+        dest = str(base / name)
     try:
         project_service.create_from_template(name, str(template_path), dest)
     except FileExistsError as e:

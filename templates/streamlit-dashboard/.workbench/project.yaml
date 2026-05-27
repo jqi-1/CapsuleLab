@@ -23,6 +23,6 @@ apps:
 
   - name: JupyterLab
     id: jupyter
-    command: jupyter lab --ip=0.0.0.0 --port=8888 --no-browser --allow-root --NotebookApp.token=''
-    port: 8888
+    command: jupyter lab --ip=0.0.0.0 --port=8899 --no-browser --allow-root --NotebookApp.token=''
+    port: 8899
     url_path: /
