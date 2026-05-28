@@ -1,10 +1,10 @@
 import ast
-import json
 import re
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
 
+from capsulelab.core.document_store import DocumentStore
 
 GRAPH_STORAGE = Path.home() / ".capsulelab" / "graphs"
 IGNORE_DIRS = {
@@ -50,15 +50,14 @@ class ProjectGraph:
     summary: dict[str, Any] = field(default_factory=dict)
 
 
-def _graph_path(project_id: str) -> Path:
+def _graph_store(project_id: str) -> DocumentStore:
     GRAPH_STORAGE.mkdir(parents=True, exist_ok=True)
-    return GRAPH_STORAGE / f"{project_id}.json"
+    return DocumentStore(GRAPH_STORAGE / f"{project_id}.json", default={})
 
 
 def _load(project_id: str) -> ProjectGraph:
-    path = _graph_path(project_id)
-    if path.exists():
-        data = json.loads(path.read_text())
+    data = _graph_store(project_id).read()
+    if data:
         return ProjectGraph(
             project_id=data.get("project_id", project_id),
             project_path=data.get("project_path", ""),
@@ -70,8 +69,7 @@ def _load(project_id: str) -> ProjectGraph:
 
 
 def _save(graph: ProjectGraph) -> None:
-    path = _graph_path(graph.project_id)
-    path.write_text(json.dumps(to_dict(graph), indent=2, default=str))
+    _graph_store(graph.project_id).write(to_dict(graph))
 
 
 def to_dict(graph: ProjectGraph) -> dict:
@@ -205,13 +203,17 @@ def _index_python_file(
     parent_stack: list[tuple[str, str]] = []
 
     class Visitor(ast.NodeVisitor):
-        def _visit_definition(self, node: ast.ClassDef | ast.FunctionDef | ast.AsyncFunctionDef, kind: str, extra: dict | None = None) -> None:
+        def _visit_definition(
+            self, node: ast.ClassDef | ast.FunctionDef | ast.AsyncFunctionDef, kind: str, extra: dict | None = None
+        ) -> None:
             qualname = ".".join([item[0] for item in parent_stack] + [node.name])
             symbol_id = _node_id("symbol", f"{rel}:{qualname}")
             metadata = {"qualname": qualname, "line": node.lineno, "language": "python"}
             if extra:
                 metadata.update(extra)
-            _add_node(nodes, GraphNode(id=symbol_id, kind=kind, label=node.name, file_path=str(path), metadata=metadata))
+            _add_node(
+                nodes, GraphNode(id=symbol_id, kind=kind, label=node.name, file_path=str(path), metadata=metadata)
+            )
             symbol_by_name.setdefault(node.name, [])
             if symbol_id not in symbol_by_name[node.name]:
                 symbol_by_name[node.name].append(symbol_id)
@@ -236,13 +238,16 @@ def _index_python_file(
                     _add_edge(edges, file_id, target_file, "imports")
                 else:
                     external_id = _node_id("external", alias.name.split(".")[0])
-                    _add_node(nodes, GraphNode(
-                        id=external_id,
-                        kind="external",
-                        label=alias.name.split(".")[0],
-                        file_path="",
-                        metadata={"language": "python"},
-                    ))
+                    _add_node(
+                        nodes,
+                        GraphNode(
+                            id=external_id,
+                            kind="external",
+                            label=alias.name.split(".")[0],
+                            file_path="",
+                            metadata={"language": "python"},
+                        ),
+                    )
                     _add_edge(edges, file_id, external_id, "imports")
 
         def visit_ImportFrom(self, node: ast.ImportFrom) -> None:
@@ -253,13 +258,16 @@ def _index_python_file(
                 _add_edge(edges, file_id, target_file, "imports")
             else:
                 external_id = _node_id("external", node.module.split(".")[0])
-                _add_node(nodes, GraphNode(
-                    id=external_id,
-                    kind="external",
-                    label=node.module.split(".")[0],
-                    file_path="",
-                    metadata={"language": "python"},
-                ))
+                _add_node(
+                    nodes,
+                    GraphNode(
+                        id=external_id,
+                        kind="external",
+                        label=node.module.split(".")[0],
+                        file_path="",
+                        metadata={"language": "python"},
+                    ),
+                )
                 _add_edge(edges, file_id, external_id, "imports")
 
         def visit_Call(self, node: ast.Call) -> None:
@@ -271,7 +279,9 @@ def _index_python_file(
                 call_name = node.func.attr
             if call_name and call_name in symbol_by_name:
                 candidates = symbol_by_name[call_name]
-                same_file = [candidate for candidate in candidates if candidate.startswith(_node_id("symbol", f"{rel}:"))]
+                same_file = [
+                    candidate for candidate in candidates if candidate.startswith(_node_id("symbol", f"{rel}:"))
+                ]
                 _add_edge(edges, caller, (same_file or candidates)[0], "calls")
             self.generic_visit(node)
 
@@ -306,7 +316,12 @@ def _index_javascript_file(
         else:
             package = specifier.split("/")[0] if not specifier.startswith("@") else "/".join(specifier.split("/")[:2])
             external_id = _node_id("external", package)
-            _add_node(nodes, GraphNode(id=external_id, kind="external", label=package, file_path="", metadata={"language": "javascript"}))
+            _add_node(
+                nodes,
+                GraphNode(
+                    id=external_id, kind="external", label=package, file_path="", metadata={"language": "javascript"}
+                ),
+            )
             _add_edge(edges, file_id, external_id, "imports")
 
 
@@ -346,7 +361,11 @@ def _summarize(graph: ProjectGraph) -> dict[str, Any]:
         risks.append("tests/ directory not found")
     if not any(node.kind == "package" for node in graph.nodes):
         risks.append("No dependency manifest found")
-    source_files = [node.label for node in graph.nodes if node.kind == "file" and node.metadata.get("language") in {"python", "javascript", "typescript"}]
+    source_files = [
+        node.label
+        for node in graph.nodes
+        if node.kind == "file" and node.metadata.get("language") in {"python", "javascript", "typescript"}
+    ]
     notebooks = [node.label for node in graph.nodes if node.metadata.get("language") == "notebook"]
     return {
         "node_count": len(graph.nodes),
@@ -384,13 +403,16 @@ def index_project(project_id: str, project_path: str) -> ProjectGraph:
         file_id = _node_id("file", rel)
         language = _language(path)
         kind = "file" if path.suffix in CODE_EXTENSIONS else "package" if path.name in PACKAGE_FILES else "artifact"
-        _add_node(nodes, GraphNode(
-            id=file_id,
-            kind=kind,
-            label=rel,
-            file_path=str(path),
-            metadata={"language": language, "size_bytes": path.stat().st_size},
-        ))
+        _add_node(
+            nodes,
+            GraphNode(
+                id=file_id,
+                kind=kind,
+                label=rel,
+                file_path=str(path),
+                metadata={"language": language, "size_bytes": path.stat().st_size},
+            ),
+        )
         file_by_rel_no_ext[str(path.relative_to(proj).with_suffix(""))] = file_id
         if path.suffix == ".py":
             module_to_file[_module_name(proj, path)] = file_id
@@ -427,18 +449,20 @@ def search(project_id: str, project_path: str, query: str = "", kind: str | None
     for node in graph.nodes:
         if kind and node.kind != kind:
             continue
-        haystack = " ".join([
-            node.id,
-            node.kind,
-            node.label,
-            node.file_path,
-            str(node.metadata.get("qualname", "")),
-            str(node.metadata.get("language", "")),
-        ]).lower()
+        haystack = " ".join(
+            [
+                node.id,
+                node.kind,
+                node.label,
+                node.file_path,
+                str(node.metadata.get("qualname", "")),
+                str(node.metadata.get("language", "")),
+            ]
+        ).lower()
         if normalized and normalized not in haystack:
             continue
         matches.append(node)
-    matches = matches[:max(1, min(limit, 100))]
+    matches = matches[: max(1, min(limit, 100))]
     ids = {node.id for node in matches}
     for edge in graph.edges:
         if edge.source in ids:

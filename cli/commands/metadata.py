@@ -37,7 +37,9 @@ def inspect(path: str = typer.Argument(..., help="Backup JSON path")):
 @metadata_cmd.command("restore")
 def restore(
     path: str = typer.Argument(..., help="Backup JSON path"),
-    include_secrets: bool = typer.Option(False, "--include-secrets", help="Restore locally stored secret values from backup"),
+    include_secrets: bool = typer.Option(
+        False, "--include-secrets", help="Restore locally stored secret values from backup"
+    ),
 ):
     try:
         result = metadata_service.restore_backup(path, include_secrets=include_secrets)

@@ -1,8 +1,12 @@
-import subprocess
-import shutil
+from __future__ import annotations
+
 import json
-from pathlib import Path
+import shutil
+import subprocess
 from dataclasses import dataclass
+from pathlib import Path
+
+from capsulelab.core.checks import DoctorCheck
 from capsulelab.core.errors import CapsuleLabError, ErrorCode, Severity
 
 
@@ -49,14 +53,15 @@ class DockerError(CapsuleLabError):
             code = ErrorCode.DAEMON_DOWN
             sev = Severity.CRITICAL
         full_msg = f"{message}\nCommand: {command}\n{stderr}" if stderr else message
-        super().__init__(code, full_msg, severity=sev, detail=stderr,
-                         suggestion=DockerError._suggestion(code))
+        super().__init__(code, full_msg, severity=sev, detail=stderr, suggestion=DockerError._suggestion(code))
         self.message = message
 
     @staticmethod
     def _suggestion(code: ErrorCode) -> str:
         suggestions = {
-            ErrorCode.PERMISSION_DENIED: "Add your user to the docker group: sudo usermod -aG docker $USER && newgrp docker",
+            ErrorCode.PERMISSION_DENIED: (
+                "Add your user to the docker group: sudo usermod -aG docker $USER && newgrp docker"
+            ),
             ErrorCode.DAEMON_DOWN: "Start Docker: sudo systemctl start docker (Linux) or open Docker Desktop.",
             ErrorCode.IMAGE_MISSING: "Run 'cap build' first, or check the image name in .workbench/project.yaml.",
             ErrorCode.PORT_CONFLICT: "Stop the other container using the port, or change the port mapping.",
@@ -72,37 +77,52 @@ def check_docker_status() -> DockerStatus:
     binary = shutil.which("docker")
     if not binary:
         return DockerStatus(
-            available=False, binary_found=False,
-            daemon_running=False, socket_accessible=False,
+            available=False,
+            binary_found=False,
+            daemon_running=False,
+            socket_accessible=False,
             error="Docker not found. Install Docker: https://docs.docker.com/engine/install/",
         )
     try:
         result = subprocess.run(
             ["docker", "info", "--format", "{{.ServerVersion}}"],
-            capture_output=True, text=True, timeout=10,
+            capture_output=True,
+            text=True,
+            timeout=10,
         )
         if result.returncode == 0:
             return DockerStatus(
-                available=True, binary_found=True,
-                daemon_running=True, socket_accessible=True,
+                available=True,
+                binary_found=True,
+                daemon_running=True,
+                socket_accessible=True,
                 version=result.stdout.strip(),
             )
         stderr = result.stderr.strip().lower()
         if "permission denied" in stderr:
             return DockerStatus(
-                available=False, binary_found=True,
-                daemon_running=True, socket_accessible=False,
-                error="Permission denied. Add your user to the 'docker' group: sudo usermod -aG docker $USER && newgrp docker",
+                available=False,
+                binary_found=True,
+                daemon_running=True,
+                socket_accessible=False,
+                error=(
+                    "Permission denied. Add your user to the 'docker' group: "
+                    "sudo usermod -aG docker $USER && newgrp docker"
+                ),
             )
         return DockerStatus(
-            available=False, binary_found=True,
-            daemon_running=False, socket_accessible=False,
+            available=False,
+            binary_found=True,
+            daemon_running=False,
+            socket_accessible=False,
             error=result.stderr.strip(),
         )
     except subprocess.TimeoutExpired:
         return DockerStatus(
-            available=False, binary_found=True,
-            daemon_running=False, socket_accessible=False,
+            available=False,
+            binary_found=True,
+            daemon_running=False,
+            socket_accessible=False,
             error="Docker daemon not responding (timeout). Is Docker running?",
         )
 
@@ -155,7 +175,7 @@ def build_with_logs(project_path: str, dockerfile_path: str, image_name: str, ta
     except FileNotFoundError:
         raise DockerError(command=" ".join(args), message="Docker not found. Is Docker installed?")
     except subprocess.TimeoutExpired:
-        raise DockerError(command=" ".join(args), message=f"Build timed out after 600s")
+        raise DockerError(command=" ".join(args), message="Build timed out after 600s")
 
 
 def run(
@@ -243,7 +263,7 @@ def exec_command(container_name: str, command: str):
     try:
         subprocess.run(args)
     except FileNotFoundError:
-        raise DockerError("docker exec", f"Docker not found")
+        raise DockerError("docker exec", "Docker not found")
 
 
 def ps(all_containers: bool = False) -> list[dict]:
@@ -258,12 +278,14 @@ def ps(all_containers: bool = False) -> list[dict]:
             continue
         parts = line.split("\t")
         if len(parts) >= 4:
-            containers.append({
-                "id": parts[0],
-                "name": parts[1],
-                "status": parts[2],
-                "image": parts[3],
-            })
+            containers.append(
+                {
+                    "id": parts[0],
+                    "name": parts[1],
+                    "status": parts[2],
+                    "image": parts[3],
+                }
+            )
     return containers
 
 
@@ -279,6 +301,41 @@ def is_running(container_name: str) -> bool:
         if c["name"] == container_name:
             return True
     return False
+
+
+def check_health() -> list[DoctorCheck]:
+    status = check_docker_status()
+    if status.available:
+        return [DoctorCheck(label="Docker", severity=Severity.INFO, ok=True, detail=f"version {status.version}")]
+    if not status.binary_found:
+        return [
+            DoctorCheck(
+                label="Docker installed",
+                severity=Severity.CRITICAL,
+                ok=False,
+                detail=status.error,
+                suggestion="Install Docker: https://docs.docker.com/engine/install/",
+            )
+        ]
+    if not status.socket_accessible:
+        return [
+            DoctorCheck(
+                label="Docker socket",
+                severity=Severity.ERROR,
+                ok=False,
+                detail=status.error,
+                suggestion="Add user to docker group: sudo usermod -aG docker $USER",
+            )
+        ]
+    return [
+        DoctorCheck(
+            label="Docker daemon",
+            severity=Severity.CRITICAL,
+            ok=False,
+            detail=status.error,
+            suggestion="Start Docker daemon",
+        )
+    ]
 
 
 def inspect(container_name: str) -> dict:

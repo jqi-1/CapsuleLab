@@ -22,7 +22,11 @@ def resources_status(path: str | None = typer.Option(None, "--path", "-p", help=
     gpu = status["gpu"]
     if gpu["available"]:
         for item in gpu["gpus"]:
-            table.add_row("GPU", item["name"], f"{item['utilization_percent']}% util, {item['memory_used_mb']}/{item['memory_total_mb']} MB")
+            table.add_row(
+                "GPU",
+                item["name"],
+                f"{item['utilization_percent']}% util, {item['memory_used_mb']}/{item['memory_total_mb']} MB",
+            )
     else:
         table.add_row("GPU", "Unavailable", "nvidia-smi not detected")
     console.print(table)

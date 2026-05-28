@@ -1,15 +1,24 @@
-from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel
 from pathlib import Path
 from typing import Optional
 
+from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel
+
+from capsulelab.db.repositories import apps, builds, projects
 from capsulelab.services import (
-    project_service, docker_service, gpu_service, app_service,
-    compose_service, git_service, resource_service, secrets_service,
-    build_assistant_service, ide_service, environment_service, runtime_service,
+    app_service,
+    build_assistant_service,
+    compose_service,
+    docker_service,
+    git_service,
+    gpu_service,
+    project_import_service,
+    project_service,
+    resource_service,
+    runtime_service,
+    secrets_service,
 )
 from capsulelab.services.docker_service import parse_image_tag
-from capsulelab.db.repositories import projects, builds, apps
 
 router = APIRouter()
 
@@ -26,19 +35,6 @@ class ImportProjectRequest(BaseModel):
     path: Optional[str] = None
     name: Optional[str] = None
     scaffold: bool = True
-
-
-class IdeSetupRequest(BaseModel):
-    ide: str
-
-
-class AddDependencyRequest(BaseModel):
-    dependency: str
-
-
-class EnvironmentVariableRequest(BaseModel):
-    name: str
-    value: str
 
 
 def _get_project(project_id: str) -> dict:
@@ -77,12 +73,14 @@ def create_project(req: CreateProjectRequest):
 
     if req.mode:
         import yaml
+
         config_path = Path(dest) / ".workbench" / "project.yaml"
         if config_path.exists():
             with open(config_path) as f:
                 cfg_data = yaml.safe_load(f)
             cfg_data["mode"] = req.mode
-            from capsulelab.core.project import default_presets, ProjectMode
+            from capsulelab.core.project import ProjectMode, default_presets
+
             pm = ProjectMode(req.mode) if req.mode in ("research", "deployable", "opensource") else None
             if pm:
                 cfg_data["presets"] = default_presets(pm)
@@ -97,10 +95,11 @@ def create_project(req: CreateProjectRequest):
 @router.post("/import")
 def import_project(req: ImportProjectRequest):
     try:
-        return git_service.import_project(req.source, dest=req.path, name=req.name, scaffold=req.scaffold)
+        return project_import_service.import_project(req.source, dest=req.path, name=req.name, scaffold=req.scaffold)
+
     except FileNotFoundError as e:
         raise HTTPException(404, str(e))
-    except git_service.GitError as e:
+    except (git_service.GitError, project_import_service.GitError) as e:
         raise HTTPException(400, e.to_dict())
     except Exception as e:
         raise HTTPException(400, str(e))
@@ -145,16 +144,38 @@ def build_project(project_id: str):
         builds.add_log(project_id, result, "success", build_logs)
         try:
             image_info = docker_service.inspect_image(result)
-            builds.set_metadata(project_id, result, image_id=image_info.get("Id"), digest=",".join(image_info.get("RepoDigests", []) or []))
+            builds.set_metadata(
+                project_id,
+                result,
+                image_id=image_info.get("Id"),
+                digest=",".join(image_info.get("RepoDigests", []) or []),
+            )
         except Exception:
             builds.set_metadata(project_id, result)
         return {"status": "built", "image": result, "warnings": warnings, "build_logs": build_logs[:5000]}
     except docker_service.DockerError as e:
         builds.add_log(project_id, image, "failed", e.stderr or str(e))
-        raise HTTPException(500, {"error_code": e.error_code.value, "message": str(e), "detail": e.detail, "suggestion": e.suggestion, "logs": e.stderr or ""})
+        raise HTTPException(
+            500,
+            {
+                "error_code": e.error_code.value,
+                "message": str(e),
+                "detail": e.detail,
+                "suggestion": e.suggestion,
+                "logs": e.stderr or "",
+            },
+        )
     except Exception as e:
         builds.add_log(project_id, image, "failed", str(e))
-        raise HTTPException(500, {"error_code": "build_failed", "message": str(e), "detail": "", "suggestion": "Check the Dockerfile and project configuration."})
+        raise HTTPException(
+            500,
+            {
+                "error_code": "build_failed",
+                "message": str(e),
+                "detail": "",
+                "suggestion": "Check the Dockerfile and project configuration.",
+            },
+        )
 
 
 @router.post("/{project_id}/start")
@@ -225,27 +246,16 @@ def apply_build_assistant(project_id: str):
         raise HTTPException(404, str(e))
 
 
-@router.post("/{project_id}/ide/setup")
-def setup_ide(project_id: str, req: IdeSetupRequest):
-    row = _get_project(project_id)
-    try:
-        return ide_service.setup_ide(row["path"], req.ide, project_name=row["name"])
-    except ValueError as e:
-        raise HTTPException(400, str(e))
-
-
-@router.get("/{project_id}/ide/{ide}/instructions")
-def ide_instructions(project_id: str, ide: str):
-    row = _get_project(project_id)
-    try:
-        return ide_service.attach_instructions(row["path"], ide, project_name=row["name"])
-    except ValueError as e:
-        raise HTTPException(400, str(e))
-
-
 def _resource_slice(resources: dict) -> dict:
-    keys = ["cpu_percent", "memory_used_mb", "memory_total_mb", "memory_percent",
-            "disk_used_gb", "disk_total_gb", "disk_percent"]
+    keys = [
+        "cpu_percent",
+        "memory_used_mb",
+        "memory_total_mb",
+        "memory_percent",
+        "disk_used_gb",
+        "disk_total_gb",
+        "disk_percent",
+    ]
     return {k: resources.get(k) for k in keys}
 
 
@@ -261,7 +271,7 @@ def project_status(project_id: str):
     gpu_info = gpu_service.get_gpu_info()
     warnings = project_service.validate(config, row["path"])
     app_statuses = [
-        app_service.get_app_status(project_id, app_cfg, container_name)
+        app_service.get_app_status(runtime_service.LocalDockerAdapter(), project_id, app_cfg, container_name)
         for app_cfg in config.apps
     ]
 
@@ -314,39 +324,3 @@ def project_status(project_id: str):
         "system": system_resources,
         "project": project_resources,
     }
-
-
-@router.get("/{project_id}/environment")
-def project_environment(project_id: str):
-    row = _get_project(project_id)
-    try:
-        return environment_service.describe(row["path"])
-    except FileNotFoundError as e:
-        raise HTTPException(404, str(e))
-
-
-@router.post("/{project_id}/environment/dependencies")
-def add_project_dependency(project_id: str, req: AddDependencyRequest):
-    row = _get_project(project_id)
-    try:
-        return environment_service.add_dependency(row["path"], req.dependency)
-    except ValueError as e:
-        raise HTTPException(400, str(e))
-
-
-@router.post("/{project_id}/environment/variables")
-def set_project_environment_variable(project_id: str, req: EnvironmentVariableRequest):
-    row = _get_project(project_id)
-    try:
-        return environment_service.set_environment_variable(row["path"], req.name, req.value)
-    except (FileNotFoundError, ValueError) as e:
-        raise HTTPException(400, str(e))
-
-
-@router.delete("/{project_id}/environment/variables/{name}")
-def remove_project_environment_variable(project_id: str, name: str):
-    row = _get_project(project_id)
-    try:
-        return environment_service.remove_environment_variable(row["path"], name)
-    except FileNotFoundError as e:
-        raise HTTPException(400, str(e))

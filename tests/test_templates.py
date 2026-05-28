@@ -1,10 +1,19 @@
+from pathlib import Path
+
 import pytest
 import yaml
-from pathlib import Path
-from capsulelab.core.project import ProjectConfig, AppConfig
+
+from capsulelab.core.project import ProjectConfig
 
 TEMPLATES_DIR = Path(__file__).resolve().parent.parent / "templates"
-MAINTAINED_TEMPLATES = ["python-basic", "pytorch-cuda", "streamlit-dashboard", "research-rag", "deployable-fastapi", "opensource-python-package"]
+MAINTAINED_TEMPLATES = [
+    "python-basic",
+    "pytorch-cuda",
+    "streamlit-dashboard",
+    "research-rag",
+    "deployable-fastapi",
+    "opensource-python-package",
+]
 
 
 def _iter_templates():
@@ -20,8 +29,7 @@ def test_all_maintained_templates_exist():
 
 
 def test_no_unlisted_templates():
-    found = sorted(d.name for d in TEMPLATES_DIR.iterdir()
-                   if d.is_dir() and not d.name.startswith("."))
+    found = sorted(d.name for d in TEMPLATES_DIR.iterdir() if d.is_dir() and not d.name.startswith("."))
     extra = [t for t in found if t not in MAINTAINED_TEMPLATES]
     assert not extra, f"Unlisted templates found — add to manifest or remove: {extra}"
 
@@ -121,22 +129,24 @@ class TestTemplateBuild:
     @pytest.mark.parametrize("name", MAINTAINED_TEMPLATES)
     def test_template_builds(self, name):
         import subprocess
+
         tmpl_dir = str(TEMPLATES_DIR / name)
         image = f"capsulelab-test-{name}:test"
         result = subprocess.run(
             ["docker", "build", "-t", image, "."],
-            capture_output=True, text=True, timeout=300,
+            capture_output=True,
+            text=True,
+            timeout=300,
             cwd=tmpl_dir,
         )
         if result.returncode != 0:
             if "platform" in result.stderr.lower() and "exec format error" in result.stderr:
                 pytest.skip(f"Base image not available for this platform ({name})")
-            assert False, (
-                f"Build failed for {name}\nstdout: {result.stdout[-500:]}\nstderr: {result.stderr[-500:]}"
-            )
+            assert False, f"Build failed for {name}\nstdout: {result.stdout[-500:]}\nstderr: {result.stderr[-500:]}"
         subprocess.run(
             ["docker", "rmi", image],
-            capture_output=True, timeout=60,
+            capture_output=True,
+            timeout=60,
         )
 
     @pytest.mark.parametrize("name", MAINTAINED_TEMPLATES)
@@ -144,6 +154,7 @@ class TestTemplateBuild:
         manifest_path = TEMPLATES_DIR / "manifest.json"
         assert manifest_path.exists(), "Missing manifest.json"
         import json
+
         manifest = json.loads(manifest_path.read_text())
         assert name in manifest, f"Template {name} missing from manifest.json"
         entry = manifest[name]

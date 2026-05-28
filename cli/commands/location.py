@@ -1,9 +1,10 @@
 import typer
 from rich.console import Console
 from rich.table import Table
-from capsulelab.services import ssh_service, location_override_service
-from capsulelab.db.sqlite import init_db
+
 from capsulelab.db.repositories import locations
+from capsulelab.db.sqlite import init_db
+from capsulelab.services import ssh_service
 
 console = Console()
 location_cmd = typer.Typer(name="location", help="Manage remote execution locations", no_args_is_help=True)
@@ -37,16 +38,16 @@ def location_add(
     console.print("\n[dim]Checking remote connectivity...[/dim]")
     docker_ok = ssh_service.check_docker(host, user)
     if docker_ok:
-        console.print(f"  [green]✓[/green] Docker available on remote")
+        console.print("  [green]✓[/green] Docker available on remote")
     else:
-        console.print(f"  [red]✗[/red] Docker not reachable on remote")
+        console.print("  [red]✗[/red] Docker not reachable on remote")
 
     if gpu:
         gpu_ok = ssh_service.check_gpu(host, user)
         if gpu_ok:
-            console.print(f"  [green]✓[/green] GPU detected on remote")
+            console.print("  [green]✓[/green] GPU detected on remote")
         else:
-            console.print(f"  [yellow]⚠[/yellow] GPU not detected (nvidia-smi)")
+            console.print("  [yellow]⚠[/yellow] GPU not detected (nvidia-smi)")
 
 
 @location_cmd.command("list")
@@ -155,7 +156,9 @@ def location_remove(
 @location_cmd.command("check")
 def location_check(
     name: str = typer.Argument(..., help="Location name"),
-    path: str = typer.Option(None, "--path", "-p", help="Optional local project directory to check remote project path"),
+    path: str = typer.Option(
+        None, "--path", "-p", help="Optional local project directory to check remote project path"
+    ),
 ):
     loc = locations.get_by_name(name)
     if not loc:
@@ -165,6 +168,7 @@ def location_check(
     console.print(f"Checking location [bold]{loc['name']}[/bold] ({loc['host']})...")
 
     from rich.table import Table
+
     table = Table(show_header=False, box=None)
     table.add_column("Check", style="cyan")
     table.add_column("Status")
@@ -203,6 +207,7 @@ def location_check(
 
     if path and status.reachable:
         from capsulelab.services import project_service
+
         try:
             project_path = project_service.resolve_project_path(path)
             config = project_service.load_config(project_path)
@@ -223,12 +228,16 @@ def location_check(
             table.add_row(
                 "Remote required files",
                 "[green]✓[/green] Present" if not project_check.missing_files else "[red]✗[/red] Missing",
-                ", ".join(project_check.missing_files) if project_check.missing_files else ".workbench/project.yaml and Dockerfile present",
+                ", ".join(project_check.missing_files)
+                if project_check.missing_files
+                else ".workbench/project.yaml and Dockerfile present",
             )
             table.add_row(
                 "Remote app ports",
                 "[green]✓[/green] Free" if not project_check.port_conflicts else "[red]✗[/red] In use",
-                ", ".join(str(p) for p in project_check.port_conflicts) if project_check.port_conflicts else "No conflicts detected",
+                ", ".join(str(p) for p in project_check.port_conflicts)
+                if project_check.port_conflicts
+                else "No conflicts detected",
             )
         except Exception as e:
             table.add_row("Remote project path", "[red]✗[/red] Check failed", str(e))

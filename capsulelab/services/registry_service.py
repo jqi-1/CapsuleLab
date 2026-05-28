@@ -1,10 +1,11 @@
 import subprocess
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from capsulelab.core.document_store import DocumentStore
 
-REGISTRY_CREDENTIALS = Path.home() / ".capsulelab" / "registry_credentials"
+REGISTRY_CREDENTIALS = DocumentStore(Path.home() / ".capsulelab" / "registry_credentials", default={})
 
 
 @dataclass
@@ -175,7 +176,9 @@ def push_image(image_tag: str, registry_key: str | None = None) -> dict:
     try:
         result = subprocess.run(
             ["docker", "push", image_tag],
-            capture_output=True, text=True, timeout=300,
+            capture_output=True,
+            text=True,
+            timeout=300,
         )
         if result.returncode != 0:
             return {"ok": False, "error": result.stderr.strip(), "image": image_tag}
@@ -190,7 +193,9 @@ def pull_image(image_tag: str) -> dict:
     try:
         result = subprocess.run(
             ["docker", "pull", image_tag],
-            capture_output=True, text=True, timeout=300,
+            capture_output=True,
+            text=True,
+            timeout=300,
         )
         if result.returncode != 0:
             return {"ok": False, "error": result.stderr.strip(), "image": image_tag}
@@ -205,7 +210,9 @@ def tag_image(source_tag: str, target_tag: str) -> dict:
     try:
         result = subprocess.run(
             ["docker", "tag", source_tag, target_tag],
-            capture_output=True, text=True, timeout=30,
+            capture_output=True,
+            text=True,
+            timeout=30,
         )
         if result.returncode != 0:
             return {"ok": False, "error": result.stderr.strip(), "source": source_tag, "target": target_tag}
@@ -220,7 +227,8 @@ def _is_logged_in(login_cmd: str) -> bool:
     try:
         result = subprocess.run(
             ["docker", "login", registry, "--help"],
-            capture_output=True, timeout=10,
+            capture_output=True,
+            timeout=10,
         )
         return result.returncode == 0
     except Exception:
@@ -228,35 +236,12 @@ def _is_logged_in(login_cmd: str) -> bool:
 
 
 def _save_credential(registry_key: str, username: str):
-    REGISTRY_CREDENTIALS.mkdir(parents=True, exist_ok=True)
-    creds = {}
-    if REGISTRY_CREDENTIALS.exists():
-        import json
-        try:
-            creds = json.loads(REGISTRY_CREDENTIALS.read_text())
-        except Exception:
-            pass
-    creds[registry_key] = {"username": username}
-    import json
-    REGISTRY_CREDENTIALS.write_text(json.dumps(creds, indent=2))
+    REGISTRY_CREDENTIALS.update({registry_key: {"username": username}})
 
 
 def _remove_credential(registry_key: str):
-    if REGISTRY_CREDENTIALS.exists():
-        import json
-        try:
-            creds = json.loads(REGISTRY_CREDENTIALS.read_text())
-            creds.pop(registry_key, None)
-            REGISTRY_CREDENTIALS.write_text(json.dumps(creds, indent=2))
-        except Exception:
-            pass
+    REGISTRY_CREDENTIALS.update(lambda creds: {k: v for k, v in creds.items() if k != registry_key})
 
 
 def credential_status() -> dict:
-    if not REGISTRY_CREDENTIALS.exists():
-        return {}
-    import json
-    try:
-        return json.loads(REGISTRY_CREDENTIALS.read_text())
-    except Exception:
-        return {}
+    return REGISTRY_CREDENTIALS.read()

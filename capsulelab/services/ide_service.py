@@ -2,7 +2,6 @@ from pathlib import Path
 
 from capsulelab.services import project_service
 
-
 SUPPORTED_IDES = {"cursor", "vscode", "windsurf"}
 
 
@@ -47,7 +46,10 @@ def attach_instructions(project_path: str, ide: str, project_name: str | None = 
         instructions = [
             *common,
             "Use Cursor command palette: Dev Containers: Attach to Running Container.",
-            "The generated `.cursor/rules/ai-workbench/capsulelab.mdc` file gives the agent project/container guidance.",
+            (
+                "The generated `.cursor/rules/ai-workbench/capsulelab.mdc` "
+                "file gives the agent project/container guidance."
+            ),
         ]
     elif ide == "vscode":
         instructions = [
@@ -129,7 +131,8 @@ This repository is managed as a CapsuleLab project named `{project_name}`.
 - Open `/workspace` in the attached container.
 - Do not assume Cursor process sandboxing is active inside containers.
 - Treat environment variables and required secrets as sensitive; do not print or persist secret values.
-- Changes to `.workbench/project.yaml`, Dockerfile, requirements files, `apt.txt`, `preBuild.bash`, or `postBuild.bash` require a rebuild with `cap build`.
+- Changes to `.workbench/project.yaml`, Dockerfile, requirements files,
+  `apt.txt`, `preBuild.bash`, or `postBuild.bash` require a rebuild with `cap build`.
 - Use `cap doctor` before long-running work and after environment changes.
 - Use `cap project git status` to review agent changes before committing.
 """

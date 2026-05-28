@@ -1,5 +1,6 @@
-from capsulelab.services import image_service, resource_service
 import subprocess
+
+from capsulelab.services import image_service, resource_service
 
 
 def test_image_catalog_has_python():

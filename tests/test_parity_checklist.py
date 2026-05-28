@@ -1,7 +1,7 @@
 import pytest
 
-from capsulelab.core.project import ProjectConfig, RuntimeConfig, AppConfig, RuntimeType
-from capsulelab.services import project_service, app_service, doctor_service
+from capsulelab.core.project import AppConfig, ProjectConfig, RuntimeConfig, RuntimeType
+from capsulelab.services import app_service, doctor_service, project_service
 from capsulelab.services.doctor_service import DoctorCheck, Severity
 
 
@@ -28,9 +28,21 @@ class TestParityChecklist:
 
         # This is the canonical shape both CLI doctor and API /status provide
         status_fields = {
-            "name", "project_id", "container", "container_running",
-            "docker", "gpu_available", "gpu_name", "gpu_vram_mb",
-            "readiness", "apps", "compose", "build", "git", "resources", "secrets",
+            "name",
+            "project_id",
+            "container",
+            "container_running",
+            "docker",
+            "gpu_available",
+            "gpu_name",
+            "gpu_vram_mb",
+            "readiness",
+            "apps",
+            "compose",
+            "build",
+            "git",
+            "resources",
+            "secrets",
         }
         assert status_fields, "status_fields must be non-empty"
 
@@ -72,20 +84,30 @@ class TestParityChecklist:
 
     @pytest.mark.pure_config
     def test_app_status_shape(self):
-        app_config = AppConfig(name="Jupyter", id="jupyter", command="jupyter lab", port=8888)
-        pid = project_service.get_project_id("test")
         # The shape returned by get_app_status (without a running container)
         shape = {
-            "app_id", "name", "port", "url", "proxy_url",
-            "url_path", "kind", "log_path", "container_running",
-            "state", "pid", "alive",
+            "app_id",
+            "name",
+            "port",
+            "url",
+            "proxy_url",
+            "url_path",
+            "kind",
+            "log_path",
+            "container_running",
+            "state",
+            "pid",
+            "alive",
         }
         assert shape, "app_status_fields must be non-empty"
 
     @pytest.mark.pure_config
     def test_error_model_shape(self):
         from capsulelab.core.errors import CapsuleLabError, ErrorCode, Severity
-        err = CapsuleLabError(ErrorCode.BAD_CONFIG, "test error", severity=Severity.ERROR, detail="detail", suggestion="fix it")
+
+        err = CapsuleLabError(
+            ErrorCode.BAD_CONFIG, "test error", severity=Severity.ERROR, detail="detail", suggestion="fix it"
+        )
         d = err.to_dict()
         assert "error_code" in d
         assert "message" in d

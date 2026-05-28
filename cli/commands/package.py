@@ -1,5 +1,6 @@
 import typer
 from rich.console import Console
+
 from capsulelab.services import package_service, project_service
 
 console = Console()

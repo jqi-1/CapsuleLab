@@ -1,6 +1,6 @@
-from capsulelab.services import ssh_service
 from capsulelab.db import sqlite
 from capsulelab.db.repositories import locations
+from capsulelab.services import ssh_service
 
 
 def test_remote_project_path_default_root():

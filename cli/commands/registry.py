@@ -1,6 +1,7 @@
 import typer
 from rich.console import Console
 from rich.table import Table
+
 from capsulelab.services import registry_service
 
 console = Console()
@@ -76,7 +77,10 @@ def pull(image: str = typer.Argument(..., help="Image tag to pull")):
 
 
 @registry_cmd.command("tag")
-def tag(source: str = typer.Argument(..., help="Source image tag"), target: str = typer.Argument(..., help="Target image tag")):
+def tag(
+    source: str = typer.Argument(..., help="Source image tag"),
+    target: str = typer.Argument(..., help="Target image tag"),
+):
     result = registry_service.tag_image(source, target)
     if result["ok"]:
         console.print(f"[green]✓ Tagged {source} -> {target}[/green]")

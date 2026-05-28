@@ -1,6 +1,7 @@
+from typing import Any
+
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
-from typing import Any
 
 from capsulelab.services import model_service
 

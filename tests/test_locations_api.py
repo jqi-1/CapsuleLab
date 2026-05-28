@@ -41,18 +41,22 @@ def test_location_status_reports_project_root_and_disk(monkeypatch):
     monkeypatch.setattr(
         locations.ssh_service,
         "check_status",
-        lambda host, user, remote_path=None: type("RemoteStatus", (), {
-            "reachable": True,
-            "docker_available": True,
-            "docker_version": "27.0",
-            "gpu_available": False,
-            "gpu_name": "",
-            "project_path_exists": True,
-            "disk_total_gb": 100.0,
-            "disk_free_gb": 75.0,
-            "disk_used_percent": 25,
-            "error": "",
-        })(),
+        lambda host, user, remote_path=None: type(
+            "RemoteStatus",
+            (),
+            {
+                "reachable": True,
+                "docker_available": True,
+                "docker_version": "27.0",
+                "gpu_available": False,
+                "gpu_name": "",
+                "project_path_exists": True,
+                "disk_total_gb": 100.0,
+                "disk_free_gb": 75.0,
+                "disk_used_percent": 25,
+                "error": "",
+            },
+        )(),
     )
     monkeypatch.setattr(locations.ssh_service, "tunnel_info", lambda location: {"location": location["name"]})
 

@@ -6,11 +6,15 @@ from capsulelab.services import environment_service
 def write_project(tmp_path):
     workbench = tmp_path / ".workbench"
     workbench.mkdir()
-    (workbench / "project.yaml").write_text(yaml.safe_dump({
-        "name": "demo",
-        "runtime": {"type": "docker", "dockerfile": "Dockerfile", "image": "demo:dev", "gpu": False},
-        "environment": {"PYTHONPATH": "/workspace"},
-    }))
+    (workbench / "project.yaml").write_text(
+        yaml.safe_dump(
+            {
+                "name": "demo",
+                "runtime": {"type": "docker", "dockerfile": "Dockerfile", "image": "demo:dev", "gpu": False},
+                "environment": {"PYTHONPATH": "/workspace"},
+            }
+        )
+    )
     (tmp_path / "requirements.txt").write_text("# base\npandas==2.2.0\n\n")
 
 

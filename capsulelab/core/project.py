@@ -1,6 +1,7 @@
-from pydantic import BaseModel, Field
-from typing import Optional
 from enum import Enum
+from typing import Optional
+
+from pydantic import BaseModel, Field
 
 
 class RuntimeType(str, Enum):
@@ -106,13 +107,17 @@ class ProjectConfig(BaseModel):
     mode: Optional[ProjectMode] = None
     presets: dict[str, bool] = Field(default_factory=dict)
     runtime: RuntimeConfig
-    mounts: list[Mount] = Field(default_factory=lambda: [
-        Mount(source=".", target="/workspace"),
-    ])
-    caches: list[Cache] = Field(default_factory=lambda: [
-        Cache(source="~/.cache/huggingface", target="/root/.cache/huggingface"),
-        Cache(source="~/.cache/torch", target="/root/.cache/torch"),
-    ])
+    mounts: list[Mount] = Field(
+        default_factory=lambda: [
+            Mount(source=".", target="/workspace"),
+        ]
+    )
+    caches: list[Cache] = Field(
+        default_factory=lambda: [
+            Cache(source="~/.cache/huggingface", target="/root/.cache/huggingface"),
+            Cache(source="~/.cache/torch", target="/root/.cache/torch"),
+        ]
+    )
     datasets: list[Dataset] = Field(default_factory=list)
     secrets: list[SecretRef] = Field(default_factory=list)
     environment: dict[str, str] = Field(default_factory=dict)

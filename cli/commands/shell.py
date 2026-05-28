@@ -1,6 +1,7 @@
 import typer
 from rich.console import Console
-from capsulelab.services import project_service, docker_service
+
+from capsulelab.services import docker_service, project_service
 
 console = Console()
 
@@ -66,6 +67,7 @@ def attach(
 
     console.print(f"[green]Attaching to container '{container_name}'... (Ctrl+P Ctrl+Q to detach)[/green]")
     import subprocess
+
     try:
         subprocess.run(["docker", "attach", container_name])
     except FileNotFoundError:

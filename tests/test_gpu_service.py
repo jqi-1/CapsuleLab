@@ -1,4 +1,5 @@
 import pytest
+
 from capsulelab.services import gpu_service
 
 

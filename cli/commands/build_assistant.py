@@ -38,7 +38,10 @@ def build_assistant(
         raise typer.Exit(1)
 
     console.print(f"[bold]Build Assistant[/bold] — {config.name}")
-    console.print("[dim]Reads build logs and known build context files. Proposed edits require review and never trigger rebuilds.[/dim]")
+    console.print(
+        "[dim]Reads build logs and known build context files. "
+        "Proposed edits require review and never trigger rebuilds.[/dim]"
+    )
 
     findings = Table(title="Findings")
     findings.add_column("Severity", style="bold")
@@ -58,4 +61,7 @@ def build_assistant(
     console.print(edits)
 
     if report.proposed_edits:
-        console.print("\n[yellow]Review the proposed edit, then run `cap build-assistant --apply` to append the first suggestion.[/yellow]")
+        console.print(
+            "\n[yellow]Review the proposed edit, then run "
+            "`cap build-assistant --apply` to append the first suggestion.[/yellow]"
+        )

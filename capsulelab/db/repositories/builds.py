@@ -24,9 +24,7 @@ class BuildsRepository:
 
     def get_metadata(self, project_id: str) -> dict | None:
         with self._db() as conn:
-            row = conn.execute(
-                "SELECT * FROM build_metadata WHERE project_id = ?", (project_id,)
-            ).fetchone()
+            row = conn.execute("SELECT * FROM build_metadata WHERE project_id = ?", (project_id,)).fetchone()
             return dict(row) if row else None
 
     def add_log(self, project_id: str, image: str, status: str, logs: str):

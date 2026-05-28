@@ -1,11 +1,12 @@
 from pathlib import Path
+
 import yaml
 
-from capsulelab.services import git_service
+from capsulelab.services import git_service, project_import_service
 
 
 def test_ensure_config_scaffolds_project_yaml(tmp_path):
-    config_path = git_service.ensure_config(str(tmp_path), "demo")
+    config_path = project_import_service.ensure_config(str(tmp_path), "demo")
 
     assert Path(config_path).exists()
     assert "name: demo" in Path(config_path).read_text()
@@ -78,7 +79,7 @@ def test_analyze_project_detects_compose_apps_gpu_and_inputs(tmp_path):
     (tmp_path / "notebooks" / "demo.ipynb").write_text("{}")
     (tmp_path / "data").mkdir()
 
-    analysis = git_service.analyze_project(str(tmp_path), name="demo")
+    analysis = project_import_service.analyze_project(str(tmp_path), name="demo")
 
     assert analysis["runtime"]["type"] == "compose"
     assert analysis["runtime"]["gpu"] is True
@@ -92,7 +93,7 @@ def test_ensure_config_writes_detected_project_yaml(tmp_path):
     (tmp_path / "requirements.txt").write_text("gradio==5.0.0\ntorch==2.4.0\n")
     (tmp_path / "gradio_app.py").write_text("import gradio as gr\n")
 
-    config_path = Path(git_service.ensure_config(str(tmp_path), "demo"))
+    config_path = Path(project_import_service.ensure_config(str(tmp_path), "demo"))
     data = yaml.safe_load(config_path.read_text())
 
     assert data["runtime"]["gpu"] is True
@@ -109,7 +110,7 @@ def test_register_existing_returns_detection_and_registers(monkeypatch, tmp_path
     monkeypatch.setattr("capsulelab.db.repositories.projects.register", fake_register)
     (tmp_path / "requirements.txt").write_text("jupyterlab==4.2.0\n")
 
-    result = git_service.register_existing(str(tmp_path), name="demo")
+    result = project_import_service.register_existing(str(tmp_path), name="demo")
 
     assert result["project_id"] == "cap-demo"
     assert result["detected"]["app_ids"] == ["jupyter"]

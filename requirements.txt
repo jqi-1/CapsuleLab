@@ -1,3 +1,5 @@
+# Secondary dependency list for non-editable installs.
+# Keep project packaging metadata in pyproject.toml as the source of truth.
 typer>=0.12.0
 rich>=13.7.0
 pyyaml>=6.0

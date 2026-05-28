@@ -1,5 +1,4 @@
 from enum import Enum
-from typing import Optional
 
 
 class ErrorCode(str, Enum):
@@ -65,7 +64,8 @@ class DockerUnavailableError(CapsuleLabError):
             message="Docker is not available",
             severity=Severity.CRITICAL,
             detail=detail or "The docker binary or daemon is not reachable.",
-            suggestion=suggestion or "Install Docker (https://docs.docker.com/engine/install/) and ensure the daemon is running.",
+            suggestion=suggestion
+            or "Install Docker (https://docs.docker.com/engine/install/) and ensure the daemon is running.",
         )
 
 
@@ -120,7 +120,9 @@ class PortConflictError(CapsuleLabError):
             message=f"Port conflict on {', '.join(str(p) for p in ports)}",
             severity=Severity.ERROR,
             detail=f"The following port(s) are already in use: {', '.join(str(p) for p in ports)}",
-            suggestion="Stop the other container using the port, or change the port mapping in .workbench/project.yaml.",
+            suggestion=(
+                "Stop the other container using the port, or change the port mapping in .workbench/project.yaml."
+            ),
         )
 
 
@@ -130,7 +132,8 @@ class GpuUnavailableError(CapsuleLabError):
             error_code=ErrorCode.GPU_UNAVAILABLE,
             message="GPU requested but not available",
             severity=Severity.WARNING,
-            detail=detail or "The project requests GPU (gpu: true) but no NVIDIA GPU or nvidia-container-toolkit was detected.",
+            detail=detail
+            or "The project requests GPU (gpu: true) but no NVIDIA GPU or nvidia-container-toolkit was detected.",
             suggestion="Ensure nvidia-smi works and nvidia-container-toolkit is installed for Docker GPU support.",
         )
 

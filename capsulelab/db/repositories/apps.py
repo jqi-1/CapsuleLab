@@ -15,7 +15,11 @@ class AppsRepository:
             ).fetchone()
             if existing:
                 conn.execute(
-                    "UPDATE app_runtime_state SET status=?, pid=?, port=?, started_at=CASE WHEN ?='running' THEN datetime('now') ELSE started_at END WHERE id=?",
+                    (
+                        "UPDATE app_runtime_state SET status=?, pid=?, port=?, "
+                        "started_at=CASE WHEN ?='running' THEN datetime('now') ELSE started_at END "
+                        "WHERE id=?"
+                    ),
                     (status, pid, port, status, existing["id"]),
                 )
             else:

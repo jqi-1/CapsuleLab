@@ -31,7 +31,9 @@ def test_export_redacts_environment_and_machine_paths(tmp_path, monkeypatch):
         "  API_KEY: secret-value\n"
     )
     (project / ".env").write_text("API_KEY=secret-value\n")
-    monkeypatch.setattr(package_service.projects, "get", lambda project_id: {"id": project_id, "name": "demo", "path": str(project)})
+    monkeypatch.setattr(
+        package_service.projects, "get", lambda project_id: {"id": project_id, "name": "demo", "path": str(project)}
+    )
     monkeypatch.setattr(package_service.builds, "get_metadata", lambda project_id: None)
 
     archive = package_service.export_project("cap-demo", str(tmp_path))

@@ -8,7 +8,9 @@ from capsulelab.db.sqlite import init_db
 from capsulelab.services import project_service, secrets_service
 
 console = Console()
-secrets_cmd = typer.Typer(name="secrets", help="Manage local project secrets without writing values to the repo", no_args_is_help=True)
+secrets_cmd = typer.Typer(
+    name="secrets", help="Manage local project secrets without writing values to the repo", no_args_is_help=True
+)
 
 
 def _project(path: str | None):

@@ -3,7 +3,6 @@ from typing import Any
 
 from capsulelab.db.sqlite import get_db, init_db
 
-
 DEFAULT_SETTINGS = {
     "runtime.default": "docker",
     "paths.default_project_root": "",

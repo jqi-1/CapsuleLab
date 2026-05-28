@@ -1,17 +1,20 @@
+from dataclasses import asdict
+
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
-from capsulelab.db.repositories import projects
 from capsulelab.core.project import ProjectConfig
+from capsulelab.db.repositories import projects
 from capsulelab.services import (
+    agent_service,
+    doctor_service,
     git_service,
+    graph_service,
     image_service,
+    project_service,
     resource_service,
     run_service,
     secrets_service,
-    project_service,
-    doctor_service,
-    graph_service,
 )
 
 router = APIRouter()
@@ -113,7 +116,9 @@ def git_pull(project_id: str, req: GitRemoteRequest):
 
 @router.post("/git/push")
 def git_push(project_id: str, req: GitPushRequest):
-    return _git_action(project_id, git_service.push, remote=req.remote, branch=req.branch, set_upstream=req.set_upstream)
+    return _git_action(
+        project_id, git_service.push, remote=req.remote, branch=req.branch, set_upstream=req.set_upstream
+    )
 
 
 @router.post("/git/publish")
@@ -180,6 +185,7 @@ def project_doctor(project_id: str):
 def project_profile(project_id: str):
     row, config = _project(project_id)
     from capsulelab.services import profile_service
+
     return profile_service.get_profile(config.mode)
 
 
@@ -223,7 +229,6 @@ def project_graph_summary(project_id: str):
 @router.post("/agent/context")
 def build_agent_context(project_id: str):
     _project(project_id)
-    from capsulelab.services import agent_service
     ctx = agent_service.build_project_context(project_id)
     return _agent_context_response(ctx)
 
@@ -231,7 +236,6 @@ def build_agent_context(project_id: str):
 @router.get("/agent/context")
 def get_agent_context(project_id: str):
     _project(project_id)
-    from capsulelab.services import agent_service
     ctx = agent_service.get_context(project_id)
     if not ctx:
         ctx = agent_service.build_project_context(project_id)
@@ -240,7 +244,6 @@ def get_agent_context(project_id: str):
 
 @router.get("/agent/catalog")
 def agent_catalog(project_id: str):
-    from capsulelab.services import agent_service
     return agent_service.catalog_contexts()
 
 
@@ -265,16 +268,12 @@ def _agent_context_response(ctx):
 @router.get("/agent/actions")
 def list_agent_actions(project_id: str):
     _project(project_id)
-    from dataclasses import asdict
-    from capsulelab.services import agent_service
     return [asdict(action) for action in agent_service.list_actions(project_id)]
 
 
 @router.post("/agent/actions")
 def propose_agent_action(project_id: str, req: AgentActionRequest):
     _project(project_id)
-    from dataclasses import asdict
-    from capsulelab.services import agent_service
     try:
         return asdict(agent_service.propose_action(project_id, req.action_type, req.title, req.rationale, req.files))
     except ValueError as e:
@@ -284,8 +283,6 @@ def propose_agent_action(project_id: str, req: AgentActionRequest):
 @router.post("/agent/actions/{action_id}/review")
 def review_agent_action(project_id: str, action_id: str, req: AgentActionReviewRequest):
     _project(project_id)
-    from dataclasses import asdict
-    from capsulelab.services import agent_service
     try:
         return asdict(agent_service.review_action(project_id, action_id, req.approved, req.reviewer, req.note))
     except ValueError as e:

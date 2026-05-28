@@ -4,7 +4,6 @@ import yaml
 
 from capsulelab.services import project_service
 
-
 DEPENDENCY_FILE = "requirements.txt"
 
 

@@ -1,5 +1,4 @@
 from fastapi import FastAPI
-from fastapi.responses import JSONResponse
 
 app = FastAPI(title="Model API", version="0.1.0")
 

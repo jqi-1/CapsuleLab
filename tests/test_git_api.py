@@ -82,13 +82,17 @@ def test_graph_index_endpoint_returns_full_graph(monkeypatch):
         summary = {"node_count": 0, "edge_count": 0}
 
     monkeypatch.setattr(backlog.graph_service, "index_project", lambda project_id, path: FakeGraph())
-    monkeypatch.setattr(backlog.graph_service, "to_dict", lambda graph: {
-        "project_id": graph.project_id,
-        "project_path": graph.project_path,
-        "nodes": graph.nodes,
-        "edges": graph.edges,
-        "summary": graph.summary,
-    })
+    monkeypatch.setattr(
+        backlog.graph_service,
+        "to_dict",
+        lambda graph: {
+            "project_id": graph.project_id,
+            "project_path": graph.project_path,
+            "nodes": graph.nodes,
+            "edges": graph.edges,
+            "summary": graph.summary,
+        },
+    )
 
     result = backlog.index_project_graph("cap-demo")
 
@@ -114,7 +118,9 @@ def test_graph_search_endpoint_uses_query_params(monkeypatch):
 
 def test_graph_inspect_endpoint_maps_missing_node(monkeypatch):
     monkeypatch.setattr(backlog, "_project", lambda project_id: ({"path": "/tmp/demo"}, object()))
-    monkeypatch.setattr(backlog.graph_service, "inspect_node", lambda *args, **kwargs: (_ for _ in ()).throw(KeyError("missing")))
+    monkeypatch.setattr(
+        backlog.graph_service, "inspect_node", lambda *args, **kwargs: (_ for _ in ()).throw(KeyError("missing"))
+    )
 
     try:
         backlog.inspect_project_graph_node("cap-demo", "missing")
@@ -127,7 +133,9 @@ def test_graph_inspect_endpoint_maps_missing_node(monkeypatch):
 def test_agent_action_endpoints_round_trip(monkeypatch):
     from capsulelab.services import agent_service
 
-    monkeypatch.setattr(backlog.projects, "get", lambda project_id: {"id": project_id, "name": "demo", "path": "/tmp/demo"})
+    monkeypatch.setattr(
+        backlog.projects, "get", lambda project_id: {"id": project_id, "name": "demo", "path": "/tmp/demo"}
+    )
     monkeypatch.setattr(backlog.project_service, "load_config", lambda path: object())
     actions = []
 

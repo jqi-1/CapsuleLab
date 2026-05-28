@@ -1,8 +1,10 @@
 import json as json_mod
+
 import typer
 from rich.console import Console
 from rich.table import Table
-from capsulelab.services import project_service, doctor_service
+
+from capsulelab.services import doctor_service, project_service
 
 console = Console()
 
@@ -38,7 +40,7 @@ def _project_doctor(project_id: str, json_output: bool = False):
 
 def _print_report(report: doctor_service.DoctorReport, json_output: bool = False):
     if json_output:
-        console.print(json_mod.dumps(report.to_dict(), indent=2))
+        print(json_mod.dumps(report.to_dict(), indent=2))
         return
 
     table = Table(title=f"Doctor Report — {report.project_name} (project: {report.project_path})")
@@ -59,13 +61,12 @@ def _print_report(report: doctor_service.DoctorReport, json_output: bool = False
 
     console.print(table)
 
-    if not report.all_ok():
-        errors = report.errors()
-        warnings = report.warnings()
-        if errors:
-            console.print(f"\n[red]{len(errors)} error(s) found. Fix them before building.[/red]")
-        if warnings:
-            console.print(f"\n[yellow]{len(warnings)} warning(s) found. Review before building.[/yellow]")
+    errors = report.errors()
+    warnings = report.warnings()
+    if errors:
+        console.print(f"\n[red]{len(errors)} error(s) found. Fix them before building.[/red]")
         raise typer.Exit(1)
-    else:
+    if warnings:
+        console.print(f"\n[yellow]{len(warnings)} warning(s) found. Review before building.[/yellow]")
+    if report.all_ok():
         console.print("\n[green]All checks passed. Ready to build.[/green]")

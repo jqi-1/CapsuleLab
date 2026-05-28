@@ -1,11 +1,11 @@
-from datetime import datetime, timedelta, timezone
 import shlex
+from datetime import datetime, timedelta, timezone
 from secrets import token_urlsafe
 
-from capsulelab.services import docker_service, project_service
-from capsulelab.db.repositories import apps, shares
-from capsulelab.core.project import AppConfig
 from capsulelab.core.errors import CapsuleLabError, ErrorCode, Severity
+from capsulelab.core.project import AppConfig
+from capsulelab.db.repositories import apps, shares
+from capsulelab.services.runtime_service import RuntimeAdapter
 
 
 class AppError(CapsuleLabError):
@@ -17,9 +17,13 @@ class ShareAccessError(AppError):
     pass
 
 
-def check_alive(container_name: str, pid: int) -> bool:
+def app_log_path(app_id: str) -> str:
+    return f"/tmp/cap-{app_id}.log"
+
+
+def check_alive(adapter: RuntimeAdapter, container_name: str, pid: int) -> bool:
     try:
-        result = docker_service.exec_run(
+        result = adapter.exec_run(
             container_name,
             f"kill -0 {pid} 2>/dev/null && echo alive || echo dead",
         )
@@ -28,9 +32,10 @@ def check_alive(container_name: str, pid: int) -> bool:
         return False
 
 
-def check_port_available(port: int) -> tuple[bool, str]:
+def check_port_available(adapter: RuntimeAdapter, port: int) -> tuple[bool, str]:
     import socket
-    used = docker_service.get_used_ports()
+
+    used = adapter.get_used_ports()
     if port in used:
         return False, f"Port {port} is already in use on the host (Docker)."
     try:
@@ -125,12 +130,15 @@ def _share_target_url(share: dict) -> str:
     row = None
     try:
         from capsulelab.db.repositories import projects
+
         row = projects.get(share["project_id"])
     except Exception:
         row = None
     if not row:
         return ""
     try:
+        from capsulelab.services import project_service
+
         config = project_service.load_config(row["path"])
         app_cfg = get_app_config(config, share["app_id"])
     except Exception:
@@ -153,14 +161,14 @@ def build_start_command(app_cfg: AppConfig, log_file: str) -> str:
     return f"nohup {app_cfg.command} > {log_file} 2>&1 & echo $!"
 
 
-def start_app(project_id: str, app_cfg: AppConfig, container_name: str) -> dict:
-    if not docker_service.is_running(container_name):
+def start_app(adapter: RuntimeAdapter, project_id: str, app_cfg: AppConfig, container_name: str) -> dict:
+    if not adapter.is_running(container_name):
         raise AppError(f"Container '{container_name}' is not running. Start the project first.")
 
     state = apps.get_state(project_id, app_cfg.id)
     pid = state.get("pid") if state else None
     if state and state["status"] == "running" and pid:
-        if check_alive(container_name, pid):
+        if check_alive(adapter, container_name, pid):
             return {
                 "status": "already_running",
                 "app": app_cfg.id,
@@ -170,14 +178,14 @@ def start_app(project_id: str, app_cfg: AppConfig, container_name: str) -> dict:
             }
 
     if app_cfg.port is not None:
-        ok, msg = check_port_available(app_cfg.port)
+        ok, msg = check_port_available(adapter, app_cfg.port)
         if not ok:
             raise AppError(msg)
 
-    log_file = docker_service.app_log_path(app_cfg.id)
+    log_file = app_log_path(app_cfg.id)
     cmd = build_start_command(app_cfg, log_file)
     try:
-        output = docker_service.exec_run(container_name, cmd, detach=False)
+        output = adapter.exec_run(container_name, cmd, detach=False)
         pid = int(output.strip())
     except Exception as e:
         apps.set_state(project_id, app_cfg.id, "failed", port=app_cfg.port)
@@ -185,7 +193,7 @@ def start_app(project_id: str, app_cfg: AppConfig, container_name: str) -> dict:
 
     apps.set_state(project_id, app_cfg.id, "running", pid=pid, port=app_cfg.port)
 
-    alive = check_alive(container_name, pid)
+    alive = check_alive(adapter, container_name, pid)
     if not alive:
         apps.set_state(project_id, app_cfg.id, "failed", pid=pid, port=app_cfg.port)
         raise AppError(f"App started but process is not alive. Check logs: cap app logs {app_cfg.id}")
@@ -199,8 +207,8 @@ def start_app(project_id: str, app_cfg: AppConfig, container_name: str) -> dict:
     }
 
 
-def stop_app(project_id: str, app_cfg: AppConfig, container_name: str) -> dict:
-    if not docker_service.is_running(container_name):
+def stop_app(adapter: RuntimeAdapter, project_id: str, app_cfg: AppConfig, container_name: str) -> dict:
+    if not adapter.is_running(container_name):
         apps.set_state(project_id, app_cfg.id, "stopped")
         return {"status": "stopped", "app": app_cfg.id}
 
@@ -208,28 +216,28 @@ def stop_app(project_id: str, app_cfg: AppConfig, container_name: str) -> dict:
     pid = state.get("pid") if state else None
 
     if pid:
-        if check_alive(container_name, pid):
-            docker_service.exec_run(container_name, f"kill {pid} 2>/dev/null || true")
+        if check_alive(adapter, container_name, pid):
+            adapter.exec_run(container_name, f"kill {pid} 2>/dev/null || true")
     if not app_cfg.command.strip():
         apps.set_state(project_id, app_cfg.id, "stopped")
         return {"status": "stopped", "app": app_cfg.id}
     first_word = app_cfg.command.split()[0]
-    docker_service.exec_run(container_name, f"pkill -f {shlex.quote(first_word)} 2>/dev/null || true")
+    adapter.exec_run(container_name, f"pkill -f {shlex.quote(first_word)} 2>/dev/null || true")
     apps.set_state(project_id, app_cfg.id, "stopped")
 
     return {"status": "stopped", "app": app_cfg.id}
 
 
-def get_app_status(project_id: str, app_cfg: AppConfig, container_name: str) -> dict:
+def get_app_status(adapter: RuntimeAdapter, project_id: str, app_cfg: AppConfig, container_name: str) -> dict:
     try:
-        running = docker_service.is_running(container_name)
+        running = adapter.is_running(container_name)
     except Exception:
         running = False
     state = apps.get_state(project_id, app_cfg.id)
     alive = None
     state_status = state.get("status") if state else "stopped"
     if running and state and state.get("pid"):
-        alive = check_alive(container_name, state["pid"])
+        alive = check_alive(adapter, container_name, state["pid"])
         if alive is False and state_status == "running":
             apps.set_state(project_id, app_cfg.id, "failed", pid=state["pid"], port=state.get("port"))
             state_status = "failed"
@@ -241,7 +249,7 @@ def get_app_status(project_id: str, app_cfg: AppConfig, container_name: str) -> 
         "proxy_url": get_proxy_app_url(project_id, app_cfg),
         "url_path": app_cfg.url_path,
         "kind": app_cfg.kind,
-        "log_path": docker_service.app_log_path(app_cfg.id),
+        "log_path": app_log_path(app_cfg.id),
         "container_running": running,
         "state": state_status,
         "pid": state.get("pid") if state else None,
@@ -249,12 +257,12 @@ def get_app_status(project_id: str, app_cfg: AppConfig, container_name: str) -> 
     }
 
 
-def get_app_logs(container_name: str, app_id: str, tail: int = 50) -> str:
-    if not docker_service.is_running(container_name):
+def get_app_logs(adapter: RuntimeAdapter, container_name: str, app_id: str, tail: int = 50) -> str:
+    if not adapter.is_running(container_name):
         raise AppError(f"Container '{container_name}' is not running.")
-    log_file = docker_service.app_log_path(app_id)
+    log_file = app_log_path(app_id)
     cmd = f"tail -n {tail} {log_file} 2>&1 || echo 'No app log file found'"
-    return docker_service.exec_run(container_name, cmd)
+    return adapter.exec_run(container_name, cmd)
 
 
 def get_app_config(config, app_id: str) -> AppConfig:

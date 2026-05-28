@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import json
 import re
 import shutil
@@ -8,6 +10,7 @@ from typing import Any
 
 import yaml
 
+from capsulelab.core.checks import DoctorCheck
 from capsulelab.core.errors import CapsuleLabError, ErrorCode, Severity
 
 
@@ -154,18 +157,20 @@ def service_definitions(project_path: str) -> list[dict]:
         service = service or {}
         ports = _normalize_ports(service.get("ports") or [])
         trim_prefix = _env_truthy(service.get("environment"), "NVWB_TRIM_PREFIX")
-        definitions.append({
-            "service": name,
-            "image": service.get("image", ""),
-            "build": service.get("build", ""),
-            "profiles": _as_list(service.get("profiles")),
-            "ports": ports,
-            "web_access": trim_prefix,
-            "urls": _service_urls(ports) if trim_prefix else [],
-            "healthcheck": bool(service.get("healthcheck")),
-            "depends_on": _depends_on(service.get("depends_on")),
-            "gpu": _requests_gpu(service),
-        })
+        definitions.append(
+            {
+                "service": name,
+                "image": service.get("image", ""),
+                "build": service.get("build", ""),
+                "profiles": _as_list(service.get("profiles")),
+                "ports": ports,
+                "web_access": trim_prefix,
+                "urls": _service_urls(ports) if trim_prefix else [],
+                "healthcheck": bool(service.get("healthcheck")),
+                "depends_on": _depends_on(service.get("depends_on")),
+                "gpu": _requests_gpu(service),
+            }
+        )
     return definitions
 
 
@@ -178,23 +183,32 @@ def validate(project_path: str) -> list[dict]:
         return findings
     for service in service_definitions(project_path):
         if service["web_access"] and not service["ports"]:
-            findings.append({
-                "severity": "error",
-                "label": f"{service['service']}: web proxy port",
-                "detail": "NVWB_TRIM_PREFIX is enabled but no ports are exposed.",
-            })
+            findings.append(
+                {
+                    "severity": "error",
+                    "label": f"{service['service']}: web proxy port",
+                    "detail": "NVWB_TRIM_PREFIX is enabled but no ports are exposed.",
+                }
+            )
         if service["depends_on"] and not service["healthcheck"]:
-            findings.append({
-                "severity": "info",
-                "label": f"{service['service']}: dependencies",
-                "detail": "Service has dependencies. Use healthchecks and service_healthy conditions for readiness-sensitive stacks.",
-            })
+            findings.append(
+                {
+                    "severity": "info",
+                    "label": f"{service['service']}: dependencies",
+                    "detail": (
+                        "Service has dependencies. Use healthchecks and "
+                        "service_healthy conditions for readiness-sensitive stacks."
+                    ),
+                }
+            )
         if service["gpu"] and "nvidia" not in json.dumps((services.get(service["service"]) or {})).lower():
-            findings.append({
-                "severity": "warning",
-                "label": f"{service['service']}: GPU configuration",
-                "detail": "GPU intent detected but NVIDIA runtime/device reservation is not explicit.",
-            })
+            findings.append(
+                {
+                    "severity": "warning",
+                    "label": f"{service['service']}: GPU configuration",
+                    "detail": "GPU intent detected but NVIDIA runtime/device reservation is not explicit.",
+                }
+            )
     return findings
 
 
@@ -215,41 +229,45 @@ def service_statuses(definitions: list[dict], services: list[dict]) -> list[dict
             else:
                 health = "not_created"
         ok = state in {"running", "up"} and health not in {"unhealthy", "stopped"}
-        statuses.append({
-            "service": definition["service"],
-            "container": runtime.get("name", ""),
-            "state": state,
-            "health": health,
-            "ok": ok,
-            "profiles": definition["profiles"],
-            "depends_on": definition["depends_on"],
-            "ports": definition["ports"],
-            "published_ports": _published_ports(definition["ports"], runtime.get("ports")),
-            "urls": definition["urls"],
-            "web_access": definition["web_access"],
-            "gpu": definition["gpu"],
-            "exit_code": runtime.get("exit_code"),
-        })
+        statuses.append(
+            {
+                "service": definition["service"],
+                "container": runtime.get("name", ""),
+                "state": state,
+                "health": health,
+                "ok": ok,
+                "profiles": definition["profiles"],
+                "depends_on": definition["depends_on"],
+                "ports": definition["ports"],
+                "published_ports": _published_ports(definition["ports"], runtime.get("ports")),
+                "urls": definition["urls"],
+                "web_access": definition["web_access"],
+                "gpu": definition["gpu"],
+                "exit_code": runtime.get("exit_code"),
+            }
+        )
     for runtime in services:
         service_name = runtime.get("service") or runtime.get("name")
         if service_name and not any(status["service"] == service_name for status in statuses):
             state = str(runtime.get("state") or "unknown").lower()
             health = str(runtime.get("health") or "unknown").lower()
-            statuses.append({
-                "service": service_name,
-                "container": runtime.get("name", ""),
-                "state": state,
-                "health": health,
-                "ok": state in {"running", "up"} and health != "unhealthy",
-                "profiles": [],
-                "depends_on": [],
-                "ports": [],
-                "published_ports": _published_ports([], runtime.get("ports")),
-                "urls": [],
-                "web_access": False,
-                "gpu": False,
-                "exit_code": runtime.get("exit_code"),
-            })
+            statuses.append(
+                {
+                    "service": service_name,
+                    "container": runtime.get("name", ""),
+                    "state": state,
+                    "health": health,
+                    "ok": state in {"running", "up"} and health != "unhealthy",
+                    "profiles": [],
+                    "depends_on": [],
+                    "ports": [],
+                    "published_ports": _published_ports([], runtime.get("ports")),
+                    "urls": [],
+                    "web_access": False,
+                    "gpu": False,
+                    "exit_code": runtime.get("exit_code"),
+                }
+            )
     return statuses
 
 
@@ -285,9 +303,13 @@ def status(project_path: str) -> dict:
         "findings": findings,
         "runtime": {
             "kind": "compose",
-            "ok": bool(definitions) and all(service["ok"] for service in service_statuses(definitions, services)) if services else False,
+            "ok": bool(definitions) and all(service["ok"] for service in service_statuses(definitions, services))
+            if services
+            else False,
             "service_count": len(definitions),
-            "running_count": len([service for service in services if str(service.get("state", "")).lower() in {"running", "up"}]),
+            "running_count": len(
+                [service for service in services if str(service.get("state", "")).lower() in {"running", "up"}]
+            ),
         },
         "error": error,
     }
@@ -309,13 +331,17 @@ def _normalize_ports(ports: list[Any]) -> list[dict]:
             if len(parts) == 1:
                 normalized.append({"published": None, "target": _int_or_none(parts[0]), "raw": port})
             else:
-                normalized.append({"published": _int_or_none(parts[-2]), "target": _int_or_none(parts[-1].split("/")[0]), "raw": port})
+                normalized.append(
+                    {"published": _int_or_none(parts[-2]), "target": _int_or_none(parts[-1].split("/")[0]), "raw": port}
+                )
         elif isinstance(port, dict):
-            normalized.append({
-                "published": _int_or_none(port.get("published")),
-                "target": _int_or_none(port.get("target")),
-                "raw": port,
-            })
+            normalized.append(
+                {
+                    "published": _int_or_none(port.get("published")),
+                    "target": _int_or_none(port.get("target")),
+                    "raw": port,
+                }
+            )
     return normalized
 
 
@@ -346,6 +372,41 @@ def _published_ports(defined_ports: list[dict], runtime_ports: Any) -> list[int]
         if port not in seen:
             seen.append(port)
     return seen
+
+
+def check_health(project_path: str, config) -> list[DoctorCheck]:
+    st = status(project_path)
+    compose_expected = config.runtime.type.value == "compose" if config.runtime else False
+    checks = []
+    if st["detected"]:
+        checks.append(
+            DoctorCheck(label="Compose file", severity=Severity.INFO, ok=True, detail=st["compose_file"] or "Detected")
+        )
+        checks.append(
+            DoctorCheck(
+                label="Compose binary",
+                severity=Severity.ERROR if compose_expected else Severity.WARNING,
+                ok=st["available"],
+                detail=st["binary"] or st["error"] or "Docker Compose not found",
+            )
+        )
+        if st["available"]:
+            detail = f"{len(st['services'])} service(s) visible" if st["services"] else "No running services"
+            checks.append(DoctorCheck(label="Compose services", severity=Severity.INFO, ok=True, detail=detail))
+    elif compose_expected:
+        checks.append(
+            DoctorCheck(
+                label="Compose file",
+                severity=Severity.ERROR,
+                ok=False,
+                detail="runtime.type is compose but no compose file was found",
+            )
+        )
+    else:
+        checks.append(
+            DoctorCheck(label="Compose file", severity=Severity.INFO, ok=True, detail="Not a Compose project")
+        )
+    return checks
 
 
 def _int_or_none(value: Any) -> int | None:

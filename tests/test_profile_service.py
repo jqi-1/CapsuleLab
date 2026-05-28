@@ -1,9 +1,9 @@
-import yaml
 from pathlib import Path
+
+import yaml
 
 from capsulelab.core.project import ProjectConfig
 from capsulelab.services import profile_service
-
 
 TEMPLATES_DIR = Path(__file__).resolve().parent.parent / "templates"
 

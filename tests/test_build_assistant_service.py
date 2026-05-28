@@ -1,7 +1,7 @@
 from pathlib import Path
 
 from capsulelab.db import sqlite
-from capsulelab.db.repositories import projects, builds
+from capsulelab.db.repositories import builds, projects
 from capsulelab.services import build_assistant_service
 
 
@@ -50,7 +50,7 @@ def test_analyze_failed_build_without_logs_is_informational(monkeypatch, tmp_pat
 
 
 def test_apply_first_proposed_edit_writes_only_build_script(monkeypatch, tmp_path):
-    project = _setup_project(monkeypatch, tmp_path)
+    _setup_project(monkeypatch, tmp_path)
     builds.add_log(
         "cap-demo",
         "demo:dev",

@@ -2,8 +2,10 @@ import http.client
 
 from fastapi import APIRouter, HTTPException, Request, Response
 from pydantic import BaseModel
-from capsulelab.services import project_service, app_service
+
 from capsulelab.db.repositories import projects
+from capsulelab.services import app_service, project_service
+from capsulelab.services.runtime_service import LocalDockerAdapter
 
 router = APIRouter()
 
@@ -30,7 +32,7 @@ def start_app(project_id: str, app_id: str):
     except app_service.AppError as e:
         raise HTTPException(404, str(e))
     try:
-        result = app_service.start_app(project_id, app_cfg, container_name)
+        result = app_service.start_app(LocalDockerAdapter(), project_id, app_cfg, container_name)
         return result
     except app_service.AppError as e:
         raise HTTPException(500, str(e))
@@ -48,7 +50,7 @@ def stop_app(project_id: str, app_id: str):
     except app_service.AppError as e:
         raise HTTPException(404, str(e))
     try:
-        result = app_service.stop_app(project_id, app_cfg, container_name)
+        result = app_service.stop_app(LocalDockerAdapter(), project_id, app_cfg, container_name)
         return result
     except app_service.AppError as e:
         raise HTTPException(500, str(e))
@@ -65,7 +67,7 @@ def app_status(project_id: str, app_id: str):
         app_cfg = app_service.get_app_config(config, app_id)
     except app_service.AppError as e:
         raise HTTPException(404, str(e))
-    return app_service.get_app_status(project_id, app_cfg, container_name)
+    return app_service.get_app_status(LocalDockerAdapter(), project_id, app_cfg, container_name)
 
 
 @router.post("/{app_id}/share")
@@ -134,7 +136,9 @@ async def proxy_app_request(project_id: str, app_id: str, path: str, request: Re
     if app_cfg.port is None:
         raise HTTPException(400, f"App '{app_id}' does not expose a port and cannot be proxied.")
 
-    status = app_service.get_app_status(project_id, app_cfg, project_service.get_container_name(config.name))
+    status = app_service.get_app_status(
+        LocalDockerAdapter(), project_id, app_cfg, project_service.get_container_name(config.name)
+    )
     if not status["container_running"]:
         raise HTTPException(409, f"Container '{project_service.get_container_name(config.name)}' is not running.")
 
@@ -149,7 +153,17 @@ async def proxy_app_request(project_id: str, app_id: str, path: str, request: Re
         response_headers = {
             key: value
             for key, value in upstream.getheaders()
-            if key.lower() not in {"transfer-encoding", "connection", "keep-alive", "proxy-authenticate", "proxy-authorization", "te", "trailers", "upgrade"}
+            if key.lower()
+            not in {
+                "transfer-encoding",
+                "connection",
+                "keep-alive",
+                "proxy-authenticate",
+                "proxy-authorization",
+                "te",
+                "trailers",
+                "upgrade",
+            }
         }
         return Response(
             content=payload,

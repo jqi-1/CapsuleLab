@@ -2,8 +2,7 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
-from capsulelab.db.repositories import projects
-from capsulelab.services import git_service, project_service
+from capsulelab.services import git_service, project_import_service, project_service
 
 console = Console()
 project_cmd = typer.Typer(name="project", help="Import and repair project inventory", no_args_is_help=True)
@@ -13,7 +12,7 @@ project_cmd.add_typer(git_cmd, name="git")
 
 @project_cmd.command("list")
 def project_list():
-    rows = git_service.inventory()
+    rows = project_import_service.inventory()
     table = Table(title="Project Inventory")
     table.add_column("Project", style="cyan")
     table.add_column("ID")
@@ -31,82 +30,13 @@ def project_import(
     scaffold: bool = typer.Option(True, "--scaffold/--no-scaffold", help="Create .workbench/project.yaml when missing"),
 ):
     try:
-        result = git_service.import_project(source, dest=dest, name=name, scaffold=scaffold)
-    except Exception as e:
-        console.print(f"[red]Import failed:[/red] {e}")
+        result = project_import_service.import_project(source, dest=dest, name=name, scaffold=scaffold)
+
+    except (git_service.GitError, project_import_service.GitError) as e:
+        console.print(f"[red]{e}[/red]")
         raise typer.Exit(1)
-    console.print(f"[green]✓[/green] Imported {result['name']} at {result['path']}")
-    _print_detected(result)
 
-
-@project_cmd.command("clone")
-def project_clone(
-    url: str = typer.Argument(..., help="Git repository URL"),
-    path: str = typer.Argument(..., help="Destination path"),
-    name: str | None = typer.Option(None, "--name", "-n", help="CapsuleLab project name"),
-):
-    try:
-        result = git_service.import_project(url, dest=path, name=name, scaffold=True)
-    except Exception as e:
-        console.print(f"[red]Clone failed:[/red] {e}")
-        raise typer.Exit(1)
-    console.print(f"[green]✓[/green] Cloned and imported {result['name']} at {result['path']}")
-    _print_detected(result)
-
-
-@project_cmd.command("repair")
-def project_repair(
-    base_dir: str = typer.Argument(".", help="Directory to scan for .workbench/project.yaml files"),
-):
-    repaired = git_service.repair_inventory(base_dir)
-    table = Table(title="Project Inventory Repair")
-    table.add_column("Project", style="cyan")
-    table.add_column("ID")
-    table.add_column("Path")
-    for row in repaired:
-        table.add_row(row["name"], row["project_id"], row["path"])
-    console.print(table)
-
-
-@project_cmd.command("remove")
-def project_remove(
-    project_id: str = typer.Argument(..., help="Registered project ID"),
-):
-    projects.remove(project_id)
-    console.print(f"[green]✓[/green] Removed {project_id} from the project inventory")
-
-
-@project_cmd.command("migrate-manifest")
-def project_migrate_manifest(
-    path: str = typer.Option(None, "--path", "-p", help="Project directory"),
-    capsule_copy: bool = typer.Option(True, "--capsule-copy/--no-capsule-copy", help="Write a top-level capsule.yaml migration copy"),
-):
-    project_path = _project_path(path)
-    try:
-        result = project_service.migrate_manifest(project_path, write_capsule_copy=capsule_copy)
-    except Exception as e:
-        console.print(f"[red]Manifest migration failed:[/red] {e}")
-        raise typer.Exit(1)
-    console.print(f"[green]✓[/green] Manifest schema v{result['schema_version']} written")
-    console.print(f"  Canonical: {result['canonical']}")
-    if result["capsule"]:
-        console.print(f"  Capsule copy: {result['capsule']}")
-
-
-def _print_detected(result: dict):
-    detected = result.get("detected") or {}
-    if not detected:
-        return
-    table = Table(title="Detected Project Inputs")
-    table.add_column("Input", style="cyan")
-    table.add_column("Value")
-    table.add_row("Dockerfile", detected.get("dockerfile") or "not found")
-    table.add_row("Compose", detected.get("compose_file") or "not found")
-    table.add_row("Packages", ", ".join(detected.get("package_files") or []) or "not found")
-    table.add_row("Notebooks", str(detected.get("notebook_count", 0)))
-    table.add_row("Apps", ", ".join(detected.get("app_ids") or []) or "none")
-    table.add_row("GPU intent", "yes" if detected.get("gpu_intent") else "no")
-    console.print(table)
+    console.print(f"[green]✓[/green] Project imported: {result['name']} ({result['project_id']})")
 
 
 def _project_path(path: str | None) -> str:
@@ -115,37 +45,6 @@ def _project_path(path: str | None) -> str:
     except FileNotFoundError as e:
         console.print(f"[red]{e}[/red]")
         raise typer.Exit(1)
-
-
-@git_cmd.command("status")
-def project_git_status(path: str = typer.Option(None, "--path", "-p", help="Project directory")):
-    status = git_service.git_status(_project_path(path))
-    table = Table(title="Git Status")
-    table.add_column("Field", style="cyan")
-    table.add_column("Value")
-    for key, value in status.items():
-        table.add_row(key, str(value))
-    console.print(table)
-
-
-@git_cmd.command("history")
-def project_git_history(
-    path: str = typer.Option(None, "--path", "-p", help="Project directory"),
-    limit: int = typer.Option(10, "--limit", "-n", help="Number of commits"),
-):
-    try:
-        commits = git_service.history(_project_path(path), limit=limit)
-    except git_service.GitError as e:
-        console.print(f"[red]{e}[/red]")
-        raise typer.Exit(1)
-    table = Table(title="Git History")
-    table.add_column("Hash", style="cyan")
-    table.add_column("Date")
-    table.add_column("Author")
-    table.add_column("Subject")
-    for commit in commits:
-        table.add_row(commit["hash"], commit["date"], commit["author"], commit["subject"])
-    console.print(table)
 
 
 @git_cmd.command("branches")

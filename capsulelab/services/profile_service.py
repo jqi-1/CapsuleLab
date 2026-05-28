@@ -1,13 +1,19 @@
-from capsulelab.core.project import (
-    ProjectMode, ProjectConfig, default_presets,
-    RESEARCH_PRESETS, DEPLOYABLE_PRESETS, OPENSOURCE_PRESETS,
-)
+from __future__ import annotations
 
+from capsulelab.core.checks import DoctorCheck
+from capsulelab.core.errors import Severity
+from capsulelab.core.project import (
+    ProjectConfig,
+    ProjectMode,
+    default_presets,
+)
 
 PROFILE_METADATA = {
     ProjectMode.research: {
         "label": "Research",
-        "description": "Notebook-first experiments, papers, datasets, models, run comparison, reports, and knowledge graphs",
+        "description": (
+            "Notebook-first experiments, papers, datasets, models, run comparison, reports, and knowledge graphs"
+        ),
         "icon": "🔬",
         "recommended_apps": ["jupyter", "tensorboard", "mlflow"],
         "required_dirs": ["notebooks"],
@@ -15,7 +21,9 @@ PROFILE_METADATA = {
     },
     ProjectMode.deployable: {
         "label": "Deployable",
-        "description": "API/service/app packaging, Docker checks, health checks, secrets, tests, logs, and deployment manifests",
+        "description": (
+            "API/service/app packaging, Docker checks, health checks, secrets, tests, logs, and deployment manifests"
+        ),
         "icon": "🚀",
         "recommended_apps": ["fastapi", "gradio", "streamlit"],
         "required_dirs": ["app", "tests", "configs"],
@@ -23,7 +31,10 @@ PROFILE_METADATA = {
     },
     ProjectMode.opensource: {
         "label": "Open Source",
-        "description": "Public project polish: README, license, contributing, docs, examples, package metadata, CI, and release readiness",
+        "description": (
+            "Public project polish: README, license, contributing, "
+            "docs, examples, package metadata, CI, and release readiness"
+        ),
         "icon": "🌐",
         "recommended_apps": [],
         "required_dirs": ["src", "tests", "docs", "examples"],
@@ -62,8 +73,31 @@ def templates_for_mode(mode: ProjectMode | None, template_manifest: dict) -> lis
     return results
 
 
+def check_health(config: ProjectConfig, project_path: str) -> list[DoctorCheck]:
+
+    if not config.mode:
+        return [
+            DoctorCheck(
+                label="Project profile",
+                severity=Severity.WARNING,
+                ok=False,
+                detail="No profile set — add 'mode' to .workbench/project.yaml",
+            )
+        ]
+
+    checks = [
+        DoctorCheck(label="Project profile", severity=Severity.INFO, ok=True, detail=f"Mode: {config.mode.value}")
+    ]
+    profile_checks = check_profile_readiness(config, project_path)
+    for pc in profile_checks:
+        sev = Severity.ERROR if pc["severity"] == "error" else Severity.INFO
+        checks.append(DoctorCheck(label=f"Profile: {pc['label']}", severity=sev, ok=pc["ok"], detail=pc["detail"]))
+    return checks
+
+
 def check_profile_readiness(config: ProjectConfig, project_path: str) -> list[dict]:
     from pathlib import Path
+
     checks: list[dict] = []
     proj = Path(project_path)
 
@@ -73,30 +107,36 @@ def check_profile_readiness(config: ProjectConfig, project_path: str) -> list[di
     meta = PROFILE_METADATA.get(config.mode, {})
     for d in meta.get("required_dirs", []):
         exists = (proj / d).exists()
-        checks.append({
-            "label": f"Required directory: {d}/",
-            "ok": exists,
-            "detail": "Found" if exists else f"Missing — create {proj / d}",
-            "severity": "error",
-        })
+        checks.append(
+            {
+                "label": f"Required directory: {d}/",
+                "ok": exists,
+                "detail": "Found" if exists else f"Missing — create {proj / d}",
+                "severity": "error",
+            }
+        )
 
     for d in meta.get("optional_dirs", []):
         exists = (proj / d).exists()
-        checks.append({
-            "label": f"Optional directory: {d}/",
-            "ok": True,
-            "detail": "Found" if exists else "Not present (optional)",
-            "severity": "info",
-        })
+        checks.append(
+            {
+                "label": f"Optional directory: {d}/",
+                "ok": True,
+                "detail": "Found" if exists else "Not present (optional)",
+                "severity": "info",
+            }
+        )
 
     for preset_name, expected in config.presets.items():
         if expected:
-            checks.append({
-                "label": f"Preset: {preset_name}",
-                "ok": True,
-                "detail": "Enabled",
-                "severity": "info",
-            })
+            checks.append(
+                {
+                    "label": f"Preset: {preset_name}",
+                    "ok": True,
+                    "detail": "Enabled",
+                    "severity": "info",
+                }
+            )
 
     if config.mode == ProjectMode.research:
         checks.extend(_research_checks(proj, config))
@@ -122,13 +162,33 @@ def _any_exists(project_path, candidates: list[str]) -> tuple[bool, str]:
 def _research_checks(proj, config: ProjectConfig) -> list[dict]:
     checks: list[dict] = []
     notebooks = list((proj / "notebooks").glob("*.ipynb")) if (proj / "notebooks").exists() else []
-    checks.append(_check("Research notebooks", bool(notebooks), f"{len(notebooks)} notebook(s)" if notebooks else "Missing notebooks/*.ipynb"))
+    checks.append(
+        _check(
+            "Research notebooks",
+            bool(notebooks),
+            f"{len(notebooks)} notebook(s)" if notebooks else "Missing notebooks/*.ipynb",
+        )
+    )
 
     has_dataset_intent = bool(config.datasets) or (proj / "data").exists()
-    checks.append(_check("Research dataset workspace", has_dataset_intent, "Dataset intent found" if has_dataset_intent else "Add datasets or data/"))
+    checks.append(
+        _check(
+            "Research dataset workspace",
+            has_dataset_intent,
+            "Dataset intent found" if has_dataset_intent else "Add datasets or data/",
+        )
+    )
 
-    has_model_cache = any("huggingface" in c.source or "torch" in c.source for c in config.caches) or (proj / "models").exists()
-    checks.append(_check("Research model cache", has_model_cache, "Model/cache path found" if has_model_cache else "Add cache mounts or models/"))
+    has_model_cache = (
+        any("huggingface" in c.source or "torch" in c.source for c in config.caches) or (proj / "models").exists()
+    )
+    checks.append(
+        _check(
+            "Research model cache",
+            has_model_cache,
+            "Model/cache path found" if has_model_cache else "Add cache mounts or models/",
+        )
+    )
 
     for label, candidates in [
         ("Research experiment notes", ["experiments/evaluation_runs.md", "experiments"]),
@@ -144,7 +204,13 @@ def _research_checks(proj, config: ProjectConfig) -> list[dict]:
 def _deployable_checks(proj, config: ProjectConfig) -> list[dict]:
     checks: list[dict] = []
     has_healthcheck = any(app.healthcheck for app in config.apps)
-    checks.append(_check("Deployable app healthcheck", has_healthcheck, "Healthcheck configured" if has_healthcheck else "Add app healthcheck path"))
+    checks.append(
+        _check(
+            "Deployable app healthcheck",
+            has_healthcheck,
+            "Healthcheck configured" if has_healthcheck else "Add app healthcheck path",
+        )
+    )
 
     for label, candidates in [
         ("Deployable env example", ["configs/env.example", ".env.example"]),
@@ -165,7 +231,7 @@ def _opensource_checks(proj) -> list[dict]:
         ("Open-source CI", [".github/workflows/ci.yml", ".github/workflows/tests.yml"]),
         ("Open-source changelog", ["CHANGELOG.md"]),
         ("Open-source release checklist", ["RELEASE.md", "docs/release.md"]),
-        ("Open-source package metadata", ["pyproject.toml", "setup.py"]),
+        ("Open-source package metadata", ["pyproject.toml"]),
     ]:
         ok, detail = _any_exists(proj, candidates)
         checks.append(_check(label, ok, f"Found {detail}" if ok else f"Missing one of: {detail}"))

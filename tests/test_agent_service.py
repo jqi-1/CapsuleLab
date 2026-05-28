@@ -44,11 +44,15 @@ def test_build_project_context_writes_json_and_agent_summary(tmp_path, monkeypat
     monkeypatch.setattr(agent_service, "AGENT_STORAGE", tmp_path / "agent")
     monkeypatch.setattr(graph_service, "GRAPH_STORAGE", tmp_path / "graphs")
     agent_service.AGENT_STORAGE.mkdir(parents=True, exist_ok=True)
-    monkeypatch.setattr(agent_service.projects, "get", lambda project_id: {"id": project_id, "name": "demo", "path": str(project)})
-    monkeypatch.setattr(agent_service.runs, "list", lambda project_id: [{"id": "run-1", "name": "baseline", "status": "finished"}])
+    monkeypatch.setattr(
+        agent_service.projects, "get", lambda project_id: {"id": project_id, "name": "demo", "path": str(project)}
+    )
+    monkeypatch.setattr(
+        agent_service.runs, "list", lambda project_id: [{"id": "run-1", "name": "baseline", "status": "finished"}]
+    )
     monkeypatch.setattr(agent_service.doctor_service, "project_doctor_for_path", lambda *args, **kwargs: FakeReport())
 
-    ctx = agent_service.build_project_context("cap-demo")
+    agent_service.build_project_context("cap-demo")
     saved = json.loads((tmp_path / "agent" / "cap-demo.json").read_text())
     loaded = agent_service.get_context("cap-demo")
 
@@ -67,7 +71,9 @@ def test_agent_actions_require_project_boundary(tmp_path, monkeypatch):
     project.mkdir()
     monkeypatch.setattr(agent_service, "AGENT_STORAGE", tmp_path / "agent")
     agent_service.AGENT_STORAGE.mkdir(parents=True, exist_ok=True)
-    monkeypatch.setattr(agent_service.projects, "get", lambda project_id: {"id": project_id, "name": "demo", "path": str(project)})
+    monkeypatch.setattr(
+        agent_service.projects, "get", lambda project_id: {"id": project_id, "name": "demo", "path": str(project)}
+    )
 
     action = agent_service.propose_action(
         "cap-demo",

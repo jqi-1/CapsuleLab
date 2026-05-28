@@ -1,6 +1,7 @@
 import pytest
+
 from capsulelab.services import docker_service
-from capsulelab.services.docker_service import parse_image_tag, app_log_path, DockerStatus
+from capsulelab.services.docker_service import DockerStatus, app_log_path, parse_image_tag
 
 
 def test_docker_available():

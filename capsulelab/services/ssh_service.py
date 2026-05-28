@@ -1,15 +1,20 @@
+import json
 import shlex
 import subprocess
-import json
-from pathlib import Path
 from dataclasses import dataclass
-from capsulelab.db.repositories import locations
+from pathlib import Path
+
 from capsulelab.core.errors import CapsuleLabError, ErrorCode, Severity
+from capsulelab.db.repositories import locations
 
 
 class SSHError(CapsuleLabError):
     def __init__(self, message: str, detail: str = ""):
-        code = ErrorCode.SSH_UNREACHABLE if "connection failed" in message.lower() or "ssh:" in message.lower() else ErrorCode.GIT_ERROR
+        code = (
+            ErrorCode.SSH_UNREACHABLE
+            if "connection failed" in message.lower() or "ssh:" in message.lower()
+            else ErrorCode.GIT_ERROR
+        )
         super().__init__(code, message, severity=Severity.ERROR, detail=detail)
 
 
@@ -69,9 +74,13 @@ class TunnelSpec:
 def _run_ssh(host: str, command: str, user: str | None = None, timeout: int = 60) -> str:
     ssh_user = f"{user}@" if user else ""
     args = [
-        "ssh", "-o", "ConnectTimeout=10",
-        "-o", "StrictHostKeyChecking=accept-new",
-        f"{ssh_user}{host}", command,
+        "ssh",
+        "-o",
+        "ConnectTimeout=10",
+        "-o",
+        "StrictHostKeyChecking=accept-new",
+        f"{ssh_user}{host}",
+        command,
     ]
     try:
         result = subprocess.run(args, capture_output=True, text=True, timeout=timeout)
@@ -221,7 +230,9 @@ def check_remote_project(
         for rel_path in required:
             remote_file = str(Path(remote_path) / rel_path)
             try:
-                out = _run_ssh(host, f"test -f {shlex.quote(remote_file)} && echo exists || echo missing", user, timeout=10)
+                out = _run_ssh(
+                    host, f"test -f {shlex.quote(remote_file)} && echo exists || echo missing", user, timeout=10
+                )
                 if out.strip() != "exists":
                     missing_files.append(rel_path)
             except SSHError:
@@ -274,28 +285,48 @@ def check_gpu(host: str, user: str | None = None) -> bool:
 
 
 def sync_project(
-    local_path: str, host: str, remote_path: str, user: str | None = None,
-    dry_run: bool = False, exclude_patterns: list[str] | None = None,
+    local_path: str,
+    host: str,
+    remote_path: str,
+    user: str | None = None,
+    dry_run: bool = False,
+    exclude_patterns: list[str] | None = None,
 ) -> str:
     ssh_user = f"{user}@" if user else ""
     try:
         subprocess.run(
             ["ssh", f"{ssh_user}{host}", f"mkdir -p {shlex.quote(remote_path)}"],
-            capture_output=True, text=True, timeout=30,
+            capture_output=True,
+            text=True,
+            timeout=30,
         )
     except subprocess.TimeoutExpired:
-        raise SSHError(f"Failed to create remote directory: timed out")
+        raise SSHError("Failed to create remote directory: timed out")
 
     default_excludes = [
-        ".git/", "__pycache__/", "*.pyc", ".venv/", "venv/",
-        ".DS_Store", ".cache/", ".trash/", ".local/share/Trash/",
-        "*.sock", ".workbench/*.pid", "*.swp", "*.swo",
-        ".cursor/", ".windsurf/",
+        ".git/",
+        "__pycache__/",
+        "*.pyc",
+        ".venv/",
+        "venv/",
+        ".DS_Store",
+        ".cache/",
+        ".trash/",
+        ".local/share/Trash/",
+        "*.sock",
+        ".workbench/*.pid",
+        "*.swp",
+        "*.swo",
+        ".cursor/",
+        ".windsurf/",
     ]
     excludes = exclude_patterns or default_excludes
     rsync_args = [
-        "rsync", "-avz", "--delete",
-        "-e", "ssh -o StrictHostKeyChecking=accept-new",
+        "rsync",
+        "-avz",
+        "--delete",
+        "-e",
+        "ssh -o StrictHostKeyChecking=accept-new",
     ]
     for pattern in excludes:
         rsync_args.extend(["--exclude", pattern])
@@ -307,11 +338,10 @@ def sync_project(
         result = subprocess.run(rsync_args, capture_output=True, text=True, timeout=300)
         if result.returncode != 0:
             detail = result.stderr.strip() or "Unknown rsync error"
-            suggestion = "Check that the remote path is writable and rsync is installed on both sides."
             raise SSHError(f"rsync failed: {detail}")
         output = result.stdout.strip()
         if dry_run:
-            detail_lines = [l for l in output.split("\n") if l.strip() and not l.startswith(".")]
+            detail_lines = [line for line in output.split("\n") if line.strip() and not line.startswith(".")]
             return f"Dry run — would transfer {len(detail_lines)} item(s)\n" + output
         return output
     except FileNotFoundError:
@@ -323,15 +353,17 @@ def sync_project(
 def build(host: str, project_path: str, dockerfile: str, image_name: str, tag: str, user: str | None = None):
     df_path = Path(project_path) / dockerfile
     full_image = f"{image_name}:{tag}"
-    cmd = " ".join([
-        "docker",
-        "build",
-        "-f",
-        shlex.quote(str(df_path)),
-        "-t",
-        shlex.quote(full_image),
-        shlex.quote(project_path),
-    ])
+    cmd = " ".join(
+        [
+            "docker",
+            "build",
+            "-f",
+            shlex.quote(str(df_path)),
+            "-t",
+            shlex.quote(full_image),
+            shlex.quote(project_path),
+        ]
+    )
     try:
         return _run_ssh(host, cmd, user, timeout=600)
     except DockerError as e:
@@ -345,7 +377,8 @@ def container_exists(host: str, container_name: str, user: str | None = None) ->
         out = _run_ssh(
             host,
             f"docker ps -a --filter name=^{container_name}$ --format '{{{{.Names}}}}'",
-            user, timeout=15,
+            user,
+            timeout=15,
         )
         return out == container_name
     except SSHError:
@@ -357,7 +390,8 @@ def is_running(host: str, container_name: str, user: str | None = None) -> bool:
         out = _run_ssh(
             host,
             f"docker ps --filter name=^{container_name}$ --format '{{{{.Names}}}}'",
-            user, timeout=15,
+            user,
+            timeout=15,
         )
         return out == container_name
     except SSHError:

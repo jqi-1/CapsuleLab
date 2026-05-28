@@ -1,7 +1,8 @@
 import typer
 from rich.console import Console
-from capsulelab.services import project_service, runtime_service
+
 from capsulelab.db.repositories import apps, locations
+from capsulelab.services import project_service, runtime_service
 
 console = Console()
 
@@ -23,7 +24,9 @@ def start(
     if location:
         loc = locations.get_by_name(location)
         if not loc:
-            console.print(f"[red]Location '{location}' not found. Add it first: cap location add {location} --host <host>[/red]")
+            console.print(
+                f"[red]Location '{location}' not found. Add it first: cap location add {location} --host <host>[/red]"
+            )
             raise typer.Exit(1)
         adapter = runtime_service.RemoteSSHAdapter(loc, project_path)
         console.print(f"[bold]Starting on remote:[/bold] {loc['name']} ({loc['host']})")

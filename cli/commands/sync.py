@@ -1,7 +1,8 @@
 import typer
 from rich.console import Console
-from capsulelab.services import project_service, ssh_service
+
 from capsulelab.db.repositories import locations
+from capsulelab.services import project_service, ssh_service
 
 console = Console()
 sync_cmd = typer.Typer(name="sync", help="Sync project to a remote location", no_args_is_help=True)
@@ -19,7 +20,6 @@ def sync_rsync(
         console.print(f"[red]{e}[/red]")
         raise typer.Exit(1)
 
-    config = project_service.load_config(project_path)
     loc = locations.get_by_name(location)
     if not loc:
         console.print(f"[red]Location '{location}' not found.[/red]")
@@ -47,7 +47,7 @@ def sync_rsync(
         result = ssh_service.sync_project(project_path, host, remote_path, user)
         console.print(f"[green]✓[/green] Project synced to {host}:{remote_path}")
         # Extract line count from rsync output
-        lines = [l for l in result.split("\n") if l.strip() and not l.startswith(".")]
+        lines = [line for line in result.split("\n") if line.strip() and not line.startswith(".")]
         console.print(f"  [dim]Transferred: {len(lines)} items[/dim]")
     except ssh_service.SSHError as e:
         console.print(f"[red]Sync failed:[/red] {e}")

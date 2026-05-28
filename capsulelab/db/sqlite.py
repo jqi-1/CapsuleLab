@@ -1,5 +1,4 @@
 import sqlite3
-import os
 from contextlib import contextmanager
 from pathlib import Path
 
@@ -196,5 +195,3 @@ def _ensure_column(conn, table: str, column: str, definition: str):
     rows = conn.execute(f"PRAGMA table_info({table})").fetchall()
     if column not in {row["name"] for row in rows}:
         conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
-
-

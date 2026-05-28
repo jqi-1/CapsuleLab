@@ -7,9 +7,9 @@ Start: python3 capsulelab_agent.py --port 8900
 
 import argparse
 import json
-import subprocess
 import shutil
-from http.server import HTTPServer, BaseHTTPRequestHandler
+import subprocess
+from http.server import BaseHTTPRequestHandler, HTTPServer
 
 
 class AgentHandler(BaseHTTPRequestHandler):
@@ -100,16 +100,20 @@ class AgentHandler(BaseHTTPRequestHandler):
             project_path = body.get("project_path", ".")
             dockerfile = body.get("dockerfile", "Dockerfile")
             image = body.get("image", "app:dev")
-            return self._json(self._cmd(
-                ["docker", "build", "-f", dockerfile, "-t", image, project_path],
-                timeout=600,
-            ))
+            return self._json(
+                self._cmd(
+                    ["docker", "build", "-f", dockerfile, "-t", image, project_path],
+                    timeout=600,
+                )
+            )
 
         if self.path == "/gpu/check":
             nvidia = shutil.which("nvidia-smi") is not None
             if not nvidia:
                 return self._json({"ok": True, "gpu": False, "error": "nvidia-smi not found"})
-            result = self._cmd(["nvidia-smi", "--query-gpu=name,memory.total", "--format=csv,noheader,nounits"], timeout=15)
+            result = self._cmd(
+                ["nvidia-smi", "--query-gpu=name,memory.total", "--format=csv,noheader,nounits"], timeout=15
+            )
             return self._json({**result, "gpu": result["ok"]})
 
         self._json({"error": "Not found"}, 404)

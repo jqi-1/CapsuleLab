@@ -3,7 +3,6 @@ from pathlib import Path
 
 from capsulelab.db.repositories import builds, projects
 
-
 READABLE_CONTEXT_FILES = [
     ".workbench/project.yaml",
     "Dockerfile",
@@ -77,23 +76,30 @@ def analyze_failed_build(project_id: str, limit: int = 5) -> BuildAssistantRepor
         context_files=_existing_context_files(project_path),
     )
     if not latest:
-        report.findings.append(BuildFinding(
-            label="No failed build log",
-            detail="No failed build log is available for analysis.",
-            severity="info",
-            suggestion="Run `cap build` first, then retry the assistant if the build fails.",
-        ))
+        report.findings.append(
+            BuildFinding(
+                label="No failed build log",
+                detail="No failed build log is available for analysis.",
+                severity="info",
+                suggestion="Run `cap build` first, then retry the assistant if the build fails.",
+            )
+        )
         return report
 
     logs = latest.get("logs", "")
     _add_log_findings(report, logs)
     if not report.proposed_edits:
-        report.findings.append(BuildFinding(
-            label="No automatic build-script edit",
-            detail="The failed log did not match the local assistant rules.",
-            severity="info",
-            suggestion="Review the build log and edit requirements.txt, apt.txt, preBuild.bash, or postBuild.bash manually.",
-        ))
+        report.findings.append(
+            BuildFinding(
+                label="No automatic build-script edit",
+                detail="The failed log did not match the local assistant rules.",
+                severity="info",
+                suggestion=(
+                    "Review the build log and edit requirements.txt, "
+                    "apt.txt, preBuild.bash, or postBuild.bash manually."
+                ),
+            )
+        )
     return report
 
 
@@ -139,49 +145,69 @@ def _existing_context_files(project_path: str) -> list[str]:
 def _add_log_findings(report: BuildAssistantReport, logs: str):
     lower = logs.lower()
     if "no matching distribution found" in lower or "could not find a version that satisfies" in lower:
-        report.findings.append(BuildFinding(
-            label="Python package resolution failed",
-            detail="pip could not resolve one or more packages from the build log.",
-            severity="error",
-            suggestion="Check package names, Python version compatibility, and version pins in requirements.txt.",
-        ))
-        report.proposed_edits.append(ProposedBuildEdit(
-            path="preBuild.bash",
-            action="append",
-            content="python -m pip install --upgrade pip setuptools wheel",
-            rationale="Upgrade packaging tools before dependency installation so modern package metadata resolves correctly.",
-        ))
+        report.findings.append(
+            BuildFinding(
+                label="Python package resolution failed",
+                detail="pip could not resolve one or more packages from the build log.",
+                severity="error",
+                suggestion="Check package names, Python version compatibility, and version pins in requirements.txt.",
+            )
+        )
+        report.proposed_edits.append(
+            ProposedBuildEdit(
+                path="preBuild.bash",
+                action="append",
+                content="python -m pip install --upgrade pip setuptools wheel",
+                rationale=(
+                    "Upgrade packaging tools before dependency installation "
+                    "so modern package metadata resolves correctly."
+                ),
+            )
+        )
     if "unable to locate package" in lower or "e: package" in lower and "has no installation candidate" in lower:
-        report.findings.append(BuildFinding(
-            label="APT package resolution failed",
-            detail="apt could not locate a system package.",
-            severity="error",
-            suggestion="Verify package names and apt repository setup before package installation.",
-        ))
-        report.proposed_edits.append(ProposedBuildEdit(
-            path="preBuild.bash",
-            action="append",
-            content="sudo apt-get update",
-            rationale="Refresh apt indexes before system package installation.",
-        ))
+        report.findings.append(
+            BuildFinding(
+                label="APT package resolution failed",
+                detail="apt could not locate a system package.",
+                severity="error",
+                suggestion="Verify package names and apt repository setup before package installation.",
+            )
+        )
+        report.proposed_edits.append(
+            ProposedBuildEdit(
+                path="preBuild.bash",
+                action="append",
+                content="sudo apt-get update",
+                rationale="Refresh apt indexes before system package installation.",
+            )
+        )
     if "permission denied" in lower:
-        report.findings.append(BuildFinding(
-            label="Permission denied during build",
-            detail="A build step failed with permission denied.",
-            severity="error",
-            suggestion="Move privileged setup into preBuild.bash/postBuild.bash and use sudo only for build-time system changes.",
-        ))
+        report.findings.append(
+            BuildFinding(
+                label="Permission denied during build",
+                detail="A build step failed with permission denied.",
+                severity="error",
+                suggestion=(
+                    "Move privileged setup into preBuild.bash/postBuild.bash "
+                    "and use sudo only for build-time system changes."
+                ),
+            )
+        )
     if "command not found" in lower:
-        report.findings.append(BuildFinding(
-            label="Missing command during build",
-            detail="A build command was not available in the image.",
-            severity="warning",
-            suggestion="Install the missing command via apt.txt or preBuild.bash before it is used.",
-        ))
+        report.findings.append(
+            BuildFinding(
+                label="Missing command during build",
+                detail="A build command was not available in the image.",
+                severity="warning",
+                suggestion="Install the missing command via apt.txt or preBuild.bash before it is used.",
+            )
+        )
     if "cuda" in lower and ("not found" in lower or "no cuda" in lower):
-        report.findings.append(BuildFinding(
-            label="CUDA dependency mismatch",
-            detail="The build log references missing CUDA components.",
-            severity="warning",
-            suggestion="Use a CUDA-capable base image or disable GPU-specific packages for CPU-only builds.",
-        ))
+        report.findings.append(
+            BuildFinding(
+                label="CUDA dependency mismatch",
+                detail="The build log references missing CUDA components.",
+                severity="warning",
+                suggestion="Use a CUDA-capable base image or disable GPU-specific packages for CPU-only builds.",
+            )
+        )

@@ -1,8 +1,10 @@
-import typer
 from pathlib import Path
+
+import typer
 from rich.console import Console
 from rich.table import Table
-from capsulelab.services import project_service, compose_service
+
+from capsulelab.services import compose_service, project_service
 
 console = Console()
 compose_cmd = typer.Typer(name="compose", help="Manage Docker Compose services", no_args_is_help=True)
@@ -58,7 +60,7 @@ def compose_down(
     volumes: bool = typer.Option(False, "--volumes", "-v", help="Remove volumes"),
 ):
     project_path, compose_file, binary, config = _get_context(path)
-    console.print(f"[bold]Stopping Compose services...[/bold]")
+    console.print("[bold]Stopping Compose services...[/bold]")
 
     try:
         compose_service.down(project_path, volumes=volumes)
@@ -80,6 +82,7 @@ def compose_logs(
     try:
         if follow:
             import subprocess
+
             args = [*binary.split(), "-f", str(compose_file), "logs", "--tail", str(tail), "--follow"]
             if service:
                 args.append(service)

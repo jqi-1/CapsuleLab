@@ -1,6 +1,7 @@
 from pathlib import Path
+
+from capsulelab.core.project import Cache, Dataset, ProjectConfig
 from capsulelab.db.repositories import locations
-from capsulelab.core.project import ProjectConfig, Dataset, Mount, Cache
 
 
 def resolve_dataset_path(dataset: Dataset, location_id: str | None, project_path: str) -> str:
@@ -40,31 +41,39 @@ def apply_location_overrides(
         "secrets": [],
     }
     for m in config.mounts:
-        resolved["mounts"].append({
-            "source": str(Path(project_path) / m.source) if not Path(m.source).is_absolute() else m.source,
-            "target": m.target,
-            "read_only": m.read_only,
-        })
+        resolved["mounts"].append(
+            {
+                "source": str(Path(project_path) / m.source) if not Path(m.source).is_absolute() else m.source,
+                "target": m.target,
+                "read_only": m.read_only,
+            }
+        )
     for dataset in config.datasets:
         resolved_path = resolve_dataset_path(dataset, location_id, project_path)
-        resolved["datasets"].append({
-            "name": dataset.name,
-            "path": resolved_path,
-            "exists": Path(resolved_path).expanduser().exists() if not location_id else None,
-            "target": dataset.target,
-            "read_only": dataset.read_only,
-        })
+        resolved["datasets"].append(
+            {
+                "name": dataset.name,
+                "path": resolved_path,
+                "exists": Path(resolved_path).expanduser().exists() if not location_id else None,
+                "target": dataset.target,
+                "read_only": dataset.read_only,
+            }
+        )
     for cache in config.caches:
         resolved_path = resolve_cache_path(cache, location_id)
-        resolved["caches"].append({
-            "source": resolved_path,
-            "exists": Path(resolved_path).expanduser().exists() if not location_id else None,
-            "target": cache.target,
-        })
+        resolved["caches"].append(
+            {
+                "source": resolved_path,
+                "exists": Path(resolved_path).expanduser().exists() if not location_id else None,
+                "target": cache.target,
+            }
+        )
     for secret in config.secrets:
-        resolved["secrets"].append({
-            "name": secret.name,
-            "location": resolve_secret_location(secret.name, location_id) or secret.location,
-            "required": secret.required,
-        })
+        resolved["secrets"].append(
+            {
+                "name": secret.name,
+                "location": resolve_secret_location(secret.name, location_id) or secret.location,
+                "required": secret.required,
+            }
+        )
     return resolved

@@ -1,23 +1,74 @@
 import pytest
-from capsulelab.services import docker_service
-from capsulelab.services.app_service import (
-    check_alive, check_port_available,
-    get_app_url, get_proxy_app_url, create_share_url, list_share_urls,
-    resolve_share_url, cleanup_expired_share_urls, revoke_share_url,
-    build_start_command, get_app_config, get_app_status, AppError, ShareAccessError,
-)
+
+from capsulelab.core.project import AppConfig
 from capsulelab.db import sqlite
 from capsulelab.db.repositories import projects
-from capsulelab.core.project import AppConfig
+from capsulelab.services.app_service import (
+    AppError,
+    ShareAccessError,
+    app_log_path,
+    build_start_command,
+    check_alive,
+    check_port_available,
+    cleanup_expired_share_urls,
+    create_share_url,
+    get_app_config,
+    get_app_status,
+    get_app_url,
+    get_proxy_app_url,
+    list_share_urls,
+    resolve_share_url,
+    revoke_share_url,
+)
+
+
+class FakeAdapter:
+    def __init__(self, is_running: bool = False):
+        self._is_running = is_running
+
+    def is_running(self, container_name: str) -> bool:
+        return self._is_running
+
+    def container_exists(self, container_name: str) -> bool:
+        return True
+
+    def get_used_ports(self) -> set[int]:
+        return set()
+
+    def exec_run(self, container_name: str, command: str, detach: bool = False) -> str:
+        return ""
+
+    def check_available(self):
+        from capsulelab.services.runtime_service import RuntimeHealth
+
+        return RuntimeHealth(available=True)
+
+    def inspect(self, container_name: str) -> dict:
+        return {}
+
+    def should_use_gpu(self, requested: bool) -> bool:
+        return requested
+
+    def run(self, plan):
+        return ""
+
+    def stop(self, container_name: str) -> None:
+        pass
+
+    def logs(self, container_name: str, tail: int = 100, follow: bool = False) -> str:
+        return ""
+
+    def exec(self, container_name: str, command: str, detach: bool = False) -> str:
+        return ""
 
 
 def test_app_log_path():
-    path = docker_service.app_log_path("jupyter")
+    path = app_log_path("jupyter")
     assert path == "/tmp/cap-jupyter.log"
 
 
 def test_app_log_path_special_chars():
-    path = docker_service.app_log_path("my-app_123")
+    path = app_log_path("my-app_123")
     assert path == "/tmp/cap-my-app_123.log"
 
 
@@ -40,7 +91,10 @@ def test_get_proxy_app_url():
 def test_get_proxy_app_url_custom_base_and_path():
     cfg = AppConfig(name="Streamlit", id="streamlit", command="streamlit", port=8501, url_path="/app")
 
-    assert get_proxy_app_url("cap-demo", cfg, "https://share.example/") == "https://share.example/projects/cap-demo/apps/streamlit/app"
+    assert (
+        get_proxy_app_url("cap-demo", cfg, "https://share.example/")
+        == "https://share.example/projects/cap-demo/apps/streamlit/app"
+    )
 
 
 def test_build_start_command():
@@ -75,10 +129,10 @@ def test_get_app_config_not_found():
 def test_get_app_status_includes_runtime_metadata(monkeypatch):
     cfg = AppConfig(name="Jupyter", id="jupyter", command="jupyter lab", port=8888)
 
-    monkeypatch.setattr("capsulelab.services.app_service.docker_service.is_running", lambda _: False)
     monkeypatch.setattr("capsulelab.db.repositories.apps.get_state", lambda *_: None)
 
-    status = get_app_status("cap-demo", cfg, "cap-demo")
+    adapter = FakeAdapter()
+    status = get_app_status(adapter, "cap-demo", cfg, "cap-demo")
 
     assert status["app_id"] == "jupyter"
     assert status["url"] == "http://localhost:8888/"
@@ -142,9 +196,10 @@ def test_cleanup_expired_share_urls(monkeypatch, tmp_path):
     projects.register("cap-demo", "demo", str(tmp_path))
     cfg = AppConfig(name="Jupyter", id="jupyter", command="jupyter lab", port=8888)
     share = create_share_url("cap-demo", cfg, hours=1)
-    from capsulelab.db.repositories import shares
     with sqlite.get_db() as conn:
-        conn.execute("UPDATE app_shares SET expires_at = '2000-01-01T00:00:00+00:00' WHERE token = ?", (share["token"],))
+        conn.execute(
+            "UPDATE app_shares SET expires_at = '2000-01-01T00:00:00+00:00' WHERE token = ?", (share["token"],)
+        )
 
     assert cleanup_expired_share_urls() == 1
     assert list_share_urls("cap-demo", "jupyter") == []
@@ -161,7 +216,6 @@ def test_get_app_status_marks_stale_running_state_failed(monkeypatch):
     cfg = AppConfig(name="Jupyter", id="jupyter", command="jupyter lab", port=8888)
     updates = []
 
-    monkeypatch.setattr("capsulelab.services.app_service.docker_service.is_running", lambda _: True)
     monkeypatch.setattr(
         "capsulelab.db.repositories.apps.get_state",
         lambda *_: {"status": "running", "pid": 123, "port": 8888},
@@ -172,7 +226,8 @@ def test_get_app_status_marks_stale_running_state_failed(monkeypatch):
         lambda *args, **kwargs: updates.append((args, kwargs)),
     )
 
-    status = get_app_status("cap-demo", cfg, "cap-demo")
+    adapter = FakeAdapter(is_running=True)
+    status = get_app_status(adapter, "cap-demo", cfg, "cap-demo")
 
     assert status["state"] == "failed"
     assert status["alive"] is False
@@ -180,11 +235,12 @@ def test_get_app_status_marks_stale_running_state_failed(monkeypatch):
 
 
 def test_check_alive_not_running():
-    assert check_alive("nonexistent-container-xyz", 12345) is False
+    adapter = FakeAdapter()
+    assert check_alive(adapter, "nonexistent-container-xyz", 12345) is False
 
 
 @pytest.mark.docker
 def test_check_port_available():
-    ok, msg = check_port_available(1)
+    adapter = FakeAdapter()
+    ok, msg = check_port_available(adapter, 1)
     assert isinstance(ok, bool)
-    assert isinstance(msg, str)

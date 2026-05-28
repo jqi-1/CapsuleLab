@@ -1,9 +1,12 @@
-import typer
 import webbrowser
+
+import typer
 from rich.console import Console
 from rich.table import Table
-from capsulelab.services import docker_service, project_service, app_service
+
 from capsulelab.db.repositories import apps
+from capsulelab.services import app_service, docker_service, project_service
+from capsulelab.services.runtime_service import LocalDockerAdapter
 
 console = Console()
 app_cmd = typer.Typer(name="app", help="Manage apps inside a project container", no_args_is_help=True)
@@ -49,7 +52,7 @@ def app_list(
     table.add_column("Proxy URL")
 
     for app_cfg in config.apps:
-        status = app_service.get_app_status(project_id, app_cfg, container_name)
+        status = app_service.get_app_status(LocalDockerAdapter(), project_id, app_cfg, container_name)
         if not running:
             status_str = "container stopped"
             health_str = "-"
@@ -66,7 +69,9 @@ def app_list(
             status_str = status["state"]
             health_str = "-"
             pid_str = str(status["pid"]) if status["pid"] else "-"
-        table.add_row(app_cfg.id, app_cfg.name, str(app_cfg.port), status_str, health_str, pid_str, status["proxy_url"] or "-")
+        table.add_row(
+            app_cfg.id, app_cfg.name, str(app_cfg.port), status_str, health_str, pid_str, status["proxy_url"] or "-"
+        )
 
     console.print(table)
 
@@ -80,7 +85,7 @@ def app_start(
     app_cfg = _get_app_config(config, app_id)
 
     try:
-        result = app_service.start_app(project_id, app_cfg, container_name)
+        result = app_service.start_app(LocalDockerAdapter(), project_id, app_cfg, container_name)
         if result["status"] == "already_running":
             console.print(f"[yellow]App '{app_cfg.name}' is already running (PID {result['pid']}).[/yellow]")
             if result.get("proxy_url"):
@@ -116,7 +121,7 @@ def app_stop(
     app_cfg = _get_app_config(config, app_id)
 
     try:
-        app_service.stop_app(project_id, app_cfg, container_name)
+        app_service.stop_app(LocalDockerAdapter(), project_id, app_cfg, container_name)
         console.print(f"[green]✓[/green] {app_cfg.name} stopped")
     except app_service.AppError as e:
         console.print(f"[red]Failed to stop app:[/red] {e}")
@@ -133,7 +138,7 @@ def app_logs(
     app_cfg = _get_app_config(config, app_id)
 
     try:
-        output = app_service.get_app_logs(container_name, app_cfg.id, tail=tail)
+        output = app_service.get_app_logs(LocalDockerAdapter(), container_name, app_cfg.id, tail=tail)
         console.print(output)
     except app_service.AppError as e:
         console.print(f"[red]{e}[/red]")
@@ -148,7 +153,7 @@ def app_health(
     _, config, project_id, container_name = _get_project_context(path)
     app_cfg = _get_app_config(config, app_id)
 
-    status = app_service.get_app_status(project_id, app_cfg, container_name)
+    status = app_service.get_app_status(LocalDockerAdapter(), project_id, app_cfg, container_name)
     if not status["container_running"]:
         console.print(f"[red]Container '{container_name}' is not running.[/red]")
         raise typer.Exit(1)

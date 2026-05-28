@@ -103,17 +103,20 @@ class ResourcesRepository:
             for row in rows:
                 snapshot = dict(row)
                 snapshot["containers"] = [
-                    dict(r) for r in conn.execute(
+                    dict(r)
+                    for r in conn.execute(
                         "SELECT * FROM container_resources WHERE snapshot_id = ?", (snapshot["id"],)
                     ).fetchall()
                 ]
                 snapshot["apps"] = [
-                    dict(r) for r in conn.execute(
+                    dict(r)
+                    for r in conn.execute(
                         "SELECT * FROM app_resources WHERE snapshot_id = ?", (snapshot["id"],)
                     ).fetchall()
                 ]
                 snapshot["compose_services"] = [
-                    dict(r) for r in conn.execute(
+                    dict(r)
+                    for r in conn.execute(
                         "SELECT * FROM compose_service_resources WHERE snapshot_id = ?", (snapshot["id"],)
                     ).fetchall()
                 ]
@@ -133,17 +136,18 @@ class ResourcesRepository:
 
             snapshot = dict(row)
             snapshot["containers"] = [
-                dict(r) for r in conn.execute(
+                dict(r)
+                for r in conn.execute(
                     "SELECT * FROM container_resources WHERE snapshot_id = ?", (snapshot["id"],)
                 ).fetchall()
             ]
             snapshot["apps"] = [
-                dict(r) for r in conn.execute(
-                    "SELECT * FROM app_resources WHERE snapshot_id = ?", (snapshot["id"],)
-                ).fetchall()
+                dict(r)
+                for r in conn.execute("SELECT * FROM app_resources WHERE snapshot_id = ?", (snapshot["id"],)).fetchall()
             ]
             snapshot["compose_services"] = [
-                dict(r) for r in conn.execute(
+                dict(r)
+                for r in conn.execute(
                     "SELECT * FROM compose_service_resources WHERE snapshot_id = ?", (snapshot["id"],)
                 ).fetchall()
             ]

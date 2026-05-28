@@ -34,20 +34,24 @@ def test_ps_parses_json(monkeypatch, tmp_path):
     monkeypatch.setattr(compose_service, "compose_binary", lambda: "docker compose")
 
     def fake_run(project_path, args, capture=True):
-        return subprocess.CompletedProcess(args, 0, '[{"Name":"demo-web-1","Service":"web","State":"running","Ports":"0.0.0.0:8000->8000/tcp"}]', "")
+        return subprocess.CompletedProcess(
+            args, 0, '[{"Name":"demo-web-1","Service":"web","State":"running","Ports":"0.0.0.0:8000->8000/tcp"}]', ""
+        )
 
     monkeypatch.setattr(compose_service, "_run", fake_run)
 
     services = compose_service.ps(str(tmp_path))
 
-    assert services == [{
-        "name": "demo-web-1",
-        "service": "web",
-        "state": "running",
-        "health": "",
-        "exit_code": None,
-        "ports": "0.0.0.0:8000->8000/tcp",
-    }]
+    assert services == [
+        {
+            "name": "demo-web-1",
+            "service": "web",
+            "state": "running",
+            "health": "",
+            "exit_code": None,
+            "ports": "0.0.0.0:8000->8000/tcp",
+        }
+    ]
 
 
 def test_ps_parses_newline_delimited_json(monkeypatch, tmp_path):
@@ -55,10 +59,12 @@ def test_ps_parses_newline_delimited_json(monkeypatch, tmp_path):
     monkeypatch.setattr(compose_service, "compose_binary", lambda: "docker compose")
 
     def fake_run(project_path, args, capture=True):
-        output = "\n".join([
-            '{"Name":"demo-web-1","Service":"web","State":"running","Ports":"8000"}',
-            '{"Name":"demo-db-1","Service":"db","State":"exited","Ports":""}',
-        ])
+        output = "\n".join(
+            [
+                '{"Name":"demo-web-1","Service":"web","State":"running","Ports":"8000"}',
+                '{"Name":"demo-db-1","Service":"db","State":"exited","Ports":""}',
+            ]
+        )
         return subprocess.CompletedProcess(args, 0, output, "")
 
     monkeypatch.setattr(compose_service, "_run", fake_run)
@@ -180,10 +186,12 @@ services:
     monkeypatch.setattr(compose_service, "compose_binary", lambda: "docker compose")
 
     def fake_run(project_path, args, capture=True):
-        output = "\n".join([
-            '{"Name":"demo-app-1","Service":"app","State":"running","Health":"healthy","Ports":"0.0.0.0:8501->8501/tcp"}',
-            '{"Name":"demo-worker-1","Service":"worker","State":"exited","ExitCode":1,"Ports":""}',
-        ])
+        output = "\n".join(
+            [
+                '{"Name":"demo-app-1","Service":"app","State":"running","Health":"healthy","Ports":"0.0.0.0:8501->8501/tcp"}',
+                '{"Name":"demo-worker-1","Service":"worker","State":"exited","ExitCode":1,"Ports":""}',
+            ]
+        )
         return subprocess.CompletedProcess(args, 0, output, "")
 
     monkeypatch.setattr(compose_service, "_run", fake_run)

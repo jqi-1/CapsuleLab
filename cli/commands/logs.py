@@ -1,7 +1,8 @@
 import typer
 from rich.console import Console
-from capsulelab.services import docker_service, project_service, ssh_service
+
 from capsulelab.db.repositories import locations
+from capsulelab.services import docker_service, project_service, ssh_service
 
 console = Console()
 

@@ -1,12 +1,12 @@
 import hashlib
-import json
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
+from capsulelab.core.document_store import DocumentStore
 
-MODEL_STORAGE = Path.home() / ".capsulelab" / "models.json"
+MODEL_STORE = DocumentStore(Path.home() / ".capsulelab" / "models.json", default={"models": []})
 
 
 @dataclass
@@ -22,15 +22,12 @@ class ModelRecord:
 
 
 def _load() -> list[ModelRecord]:
-    if not MODEL_STORAGE.exists():
-        return []
-    data = json.loads(MODEL_STORAGE.read_text())
+    data = MODEL_STORE.read()
     return [ModelRecord(**row) for row in data.get("models", [])]
 
 
 def _save(records: list[ModelRecord]) -> None:
-    MODEL_STORAGE.parent.mkdir(parents=True, exist_ok=True)
-    MODEL_STORAGE.write_text(json.dumps({"models": [asdict(record) for record in records]}, indent=2))
+    MODEL_STORE.write({"models": [asdict(record) for record in records]})
 
 
 def register_model(

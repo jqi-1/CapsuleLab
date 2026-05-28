@@ -8,13 +8,23 @@ from pathlib import Path
 import yaml
 
 from capsulelab.db.repositories import builds, projects
-from capsulelab.services import project_service, git_service
-
+from capsulelab.services import project_import_service, project_service
 
 EXCLUDED_PATTERNS = [
-    ".git", "__pycache__", "*.pyc", ".venv", "venv",
-    ".cursor", ".windsurf", ".trash", ".env", ".env.*",
-    "*.pem", "*.key", "id_rsa", "id_ed25519",
+    ".git",
+    "__pycache__",
+    "*.pyc",
+    ".venv",
+    "venv",
+    ".cursor",
+    ".windsurf",
+    ".trash",
+    ".env",
+    ".env.*",
+    "*.pem",
+    "*.key",
+    "id_rsa",
+    "id_ed25519",
 ]
 
 
@@ -31,8 +41,7 @@ def export_project(project_id: str, output_path: str | None = None) -> str:
     with tempfile.TemporaryDirectory(prefix="capsulelab-export-") as tmpdir:
         tmp = Path(tmpdir)
         export_path = tmp / config.name
-        shutil.copytree(project_path, export_path, symlinks=True,
-                        ignore=shutil.ignore_patterns(*EXCLUDED_PATTERNS))
+        shutil.copytree(project_path, export_path, symlinks=True, ignore=shutil.ignore_patterns(*EXCLUDED_PATTERNS))
 
         build_meta = builds.get_metadata(project_id)
         sanitized_config, redactions = sanitize_config_for_export(config, project_path)
@@ -52,11 +61,19 @@ def export_project(project_id: str, output_path: str | None = None) -> str:
             "redactions": redactions,
         }
         (export_path / ".capsule-manifest.json").write_text(json.dumps(manifest, indent=2))
-        (export_path / ".capsule-export-report.json").write_text(json.dumps({
-            "policy": "portable project intent only; local secrets and machine-specific paths are excluded or redacted",
-            "redactions": redactions,
-            "excluded_patterns": EXCLUDED_PATTERNS,
-        }, indent=2))
+        (export_path / ".capsule-export-report.json").write_text(
+            json.dumps(
+                {
+                    "policy": (
+                        "portable project intent only; local secrets and "
+                        "machine-specific paths are excluded or redacted"
+                    ),
+                    "redactions": redactions,
+                    "excluded_patterns": EXCLUDED_PATTERNS,
+                },
+                indent=2,
+            )
+        )
 
         with tarfile.open(str(dest), "w:gz") as tar:
             tar.add(export_path, arcname=config.name)
@@ -101,7 +118,7 @@ def import_project(capsule_path: str, dest_dir: str | None = None) -> dict:
             config_data = yaml.safe_load(config_path.read_text()) or {}
             project_name = config_data.get("name", target.name)
 
-        result = git_service.register_existing(str(target), name=project_name, scaffold=False)
+        result = project_import_service.register_existing(str(target), name=project_name, scaffold=False)
         result["manifest"] = manifest
         result["path"] = str(target)
         return result
@@ -122,24 +139,41 @@ def sanitize_config_for_export(config, project_path: Path) -> tuple[dict, list[d
         source = mount.get("source", "")
         if _is_machine_specific_path(source, project_path):
             mount["source"] = ""
-            redactions.append({"field": f"mounts.{mount.get('target', '')}.source", "reason": f"machine-specific path redacted: {source}"})
+            redactions.append(
+                {
+                    "field": f"mounts.{mount.get('target', '')}.source",
+                    "reason": f"machine-specific path redacted: {source}",
+                }
+            )
 
     for dataset in data.get("datasets") or []:
         source = dataset.get("path", "")
         if _is_machine_specific_path(source, project_path):
             dataset["path"] = ""
-            redactions.append({"field": f"datasets.{dataset.get('name', '')}.path", "reason": f"machine-specific path redacted: {source}"})
+            redactions.append(
+                {
+                    "field": f"datasets.{dataset.get('name', '')}.path",
+                    "reason": f"machine-specific path redacted: {source}",
+                }
+            )
 
     for cache in data.get("caches") or []:
         source = cache.get("source", "")
         if _is_machine_specific_path(source, project_path):
             cache["source"] = ""
-            redactions.append({"field": f"caches.{cache.get('target', '')}.source", "reason": f"machine-specific path redacted: {source}"})
+            redactions.append(
+                {
+                    "field": f"caches.{cache.get('target', '')}.source",
+                    "reason": f"machine-specific path redacted: {source}",
+                }
+            )
 
     for secret in data.get("secrets") or []:
         if secret.get("location"):
             secret["location"] = None
-            redactions.append({"field": f"secrets.{secret.get('name', '')}.location", "reason": "secret locations are local state"})
+            redactions.append(
+                {"field": f"secrets.{secret.get('name', '')}.location", "reason": "secret locations are local state"}
+            )
 
     return data, redactions
 

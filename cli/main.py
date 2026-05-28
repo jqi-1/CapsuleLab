@@ -1,24 +1,27 @@
 import typer
-from cli.commands import init, doctor, build, start, stop, logs, build_assistant
+
+from cli.commands import build, build_assistant, doctor, init, logs, start, stop
 from cli.commands.app import app_cmd
-from cli.commands.location import location_cmd
 from cli.commands.compose import compose_cmd
+from cli.commands.data import data_cmd
+from cli.commands.graph import graph as graph_cmd
+from cli.commands.ide import ide_cmd
+from cli.commands.images import images_cmd
+from cli.commands.location import location_cmd
+from cli.commands.metadata import metadata_cmd
+from cli.commands.package import package_cmd
+from cli.commands.profile import profile as profile_cmd
+from cli.commands.project import project_cmd
+from cli.commands.registry import registry_cmd
+from cli.commands.resources import resources_cmd
+from cli.commands.runs import runs_cmd
+from cli.commands.secrets import secrets_cmd
+from cli.commands.settings import settings_cmd
+from cli.commands.shell import attach as attach_cmd
+from cli.commands.shell import exec_cmd
+from cli.commands.shell import shell as shell_cmd
 from cli.commands.sync import sync_cmd
 from cli.commands.template import template_cmd
-from cli.commands.project import project_cmd
-from cli.commands.secrets import secrets_cmd
-from cli.commands.runs import runs_cmd
-from cli.commands.resources import resources_cmd
-from cli.commands.images import images_cmd
-from cli.commands.data import data_cmd
-from cli.commands.ide import ide_cmd
-from cli.commands.package import package_cmd
-from cli.commands.shell import shell as shell_cmd, exec_cmd, attach as attach_cmd
-from cli.commands.profile import profile as profile_cmd
-from cli.commands.graph import graph as graph_cmd
-from cli.commands.registry import registry_cmd
-from cli.commands.metadata import metadata_cmd
-from cli.commands.settings import settings_cmd
 
 cli = typer.Typer(
     name="cap",

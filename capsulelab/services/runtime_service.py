@@ -7,7 +7,6 @@ from typing import Protocol
 from capsulelab.core.project import ProjectConfig
 from capsulelab.services import docker_service, gpu_service, ssh_service
 
-
 PROJECT_LABEL = "com.capsulelab.project"
 
 
@@ -71,35 +70,27 @@ class RuntimeConflict(RuntimeError):
 
 
 class RuntimeAdapter(Protocol):
-    def check_available(self) -> RuntimeHealth:
-        ...
+    def check_available(self) -> RuntimeHealth: ...
 
-    def container_exists(self, container_name: str) -> bool:
-        ...
+    def container_exists(self, container_name: str) -> bool: ...
 
-    def is_running(self, container_name: str) -> bool:
-        ...
+    def is_running(self, container_name: str) -> bool: ...
 
-    def inspect(self, container_name: str) -> dict:
-        ...
+    def inspect(self, container_name: str) -> dict: ...
 
-    def get_used_ports(self) -> set[int]:
-        ...
+    def get_used_ports(self) -> set[int]: ...
 
-    def should_use_gpu(self, requested: bool) -> bool:
-        ...
+    def should_use_gpu(self, requested: bool) -> bool: ...
 
-    def run(self, plan: RuntimeStartPlan) -> str:
-        ...
+    def run(self, plan: RuntimeStartPlan) -> str: ...
 
-    def stop(self, container_name: str) -> None:
-        ...
+    def stop(self, container_name: str) -> None: ...
 
-    def logs(self, container_name: str, tail: int = 100, follow: bool = False) -> str:
-        ...
+    def logs(self, container_name: str, tail: int = 100, follow: bool = False) -> str: ...
 
-    def exec(self, container_name: str, command: str, detach: bool = False) -> str:
-        ...
+    def exec(self, container_name: str, command: str, detach: bool = False) -> str: ...
+
+    def exec_run(self, container_name: str, command: str, detach: bool = False) -> str: ...
 
 
 class LocalDockerAdapter:
@@ -147,6 +138,9 @@ class LocalDockerAdapter:
         return docker_service.logs(container_name, tail=tail, follow=follow)
 
     def exec(self, container_name: str, command: str, detach: bool = False) -> str:
+        return docker_service.exec_run(container_name, command, detach=detach)
+
+    def exec_run(self, container_name: str, command: str, detach: bool = False) -> str:
         return docker_service.exec_run(container_name, command, detach=detach)
 
 
@@ -212,6 +206,9 @@ class RemoteSSHAdapter:
         return ssh_service.logs(self.host, container_name, tail=tail, user=self.user)
 
     def exec(self, container_name: str, command: str, detach: bool = False) -> str:
+        return ssh_service.exec_run(self.host, container_name, command, self.user, detach=detach)
+
+    def exec_run(self, container_name: str, command: str, detach: bool = False) -> str:
         return ssh_service.exec_run(self.host, container_name, command, self.user, detach=detach)
 
 

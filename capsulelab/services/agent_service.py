@@ -1,12 +1,11 @@
 import json
-from dataclasses import dataclass, field, asdict
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
-from capsulelab.services import graph_service, project_service, doctor_service
 from capsulelab.db.repositories import projects, runs
-
+from capsulelab.services import doctor_service, graph_service, project_service
 
 AGENT_STORAGE = Path.home() / ".capsulelab" / "agent"
 
@@ -77,7 +76,9 @@ def build_project_context(project_id: str) -> AgentContext:
 
     try:
         all_runs = runs.list(project_id)
-        ctx.recent_runs = [{"id": r["id"], "name": r.get("name", ""), "status": r.get("status", "unknown")} for r in all_runs[-5:]]
+        ctx.recent_runs = [
+            {"id": r["id"], "name": r.get("name", ""), "status": r.get("status", "unknown")} for r in all_runs[-5:]
+        ]
     except Exception:
         pass
 
@@ -117,7 +118,9 @@ def _architecture_summary(graph) -> str:
 
 
 def _data_mounts(config) -> list[dict]:
-    mounts = [{"kind": "mount", "source": m.source, "target": m.target, "read_only": m.read_only} for m in config.mounts]
+    mounts = [
+        {"kind": "mount", "source": m.source, "target": m.target, "read_only": m.read_only} for m in config.mounts
+    ]
     mounts.extend({"kind": "dataset", **dataset.model_dump()} for dataset in config.datasets)
     mounts.extend({"kind": "cache", **cache.model_dump()} for cache in config.caches)
     return mounts
@@ -159,21 +162,25 @@ def catalog_contexts() -> list[dict[str, Any]]:
         if ctx:
             ok_count = sum(1 for c in ctx.check_results if c.get("ok"))
             total_count = len(ctx.check_results)
-            results.append({
-                "project_id": ctx.project_id,
-                "project_name": ctx.project_name,
-                "app_count": len(ctx.app_list),
-                "checks_passing": ok_count,
-                "checks_total": total_count,
-            })
+            results.append(
+                {
+                    "project_id": ctx.project_id,
+                    "project_name": ctx.project_name,
+                    "app_count": len(ctx.app_list),
+                    "checks_passing": ok_count,
+                    "checks_total": total_count,
+                }
+            )
         else:
-            results.append({
-                "project_id": project["id"],
-                "project_name": project["name"],
-                "app_count": 0,
-                "checks_passing": 0,
-                "checks_total": 0,
-            })
+            results.append(
+                {
+                    "project_id": project["id"],
+                    "project_name": project["name"],
+                    "app_count": 0,
+                    "checks_passing": 0,
+                    "checks_total": 0,
+                }
+            )
     return results
 
 
@@ -194,14 +201,18 @@ def _save_actions(project_id: str, actions: list[AgentAction]) -> None:
     _actions_path(project_id).write_text(json.dumps({"actions": [asdict(action) for action in actions]}, indent=2))
 
 
-def propose_action(project_id: str, action_type: str, title: str, rationale: str, files: list[str] | None = None) -> AgentAction:
+def propose_action(
+    project_id: str, action_type: str, title: str, rationale: str, files: list[str] | None = None
+) -> AgentAction:
     row = projects.get(project_id)
     if not row:
         raise ValueError(f"Project '{project_id}' not found")
     project_path = Path(row["path"]).resolve()
     safe_files: list[str] = []
     for file_path in files or []:
-        resolved = (project_path / file_path).resolve() if not Path(file_path).is_absolute() else Path(file_path).resolve()
+        resolved = (
+            (project_path / file_path).resolve() if not Path(file_path).is_absolute() else Path(file_path).resolve()
+        )
         if project_path not in [resolved, *resolved.parents]:
             raise ValueError(f"Agent action file escapes project boundary: {file_path}")
         safe_files.append(str(resolved.relative_to(project_path)))

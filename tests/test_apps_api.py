@@ -1,14 +1,16 @@
-import json
 import asyncio
+import json
 
 from fastapi import HTTPException
+from starlette.requests import Request
 
 from backend.api import apps
-from starlette.requests import Request
 
 
 def test_resolve_share_endpoint_returns_share(monkeypatch):
-    monkeypatch.setattr(apps.projects, "get", lambda project_id: {"id": project_id, "name": "demo", "path": "/tmp/demo"})
+    monkeypatch.setattr(
+        apps.projects, "get", lambda project_id: {"id": project_id, "name": "demo", "path": "/tmp/demo"}
+    )
 
     def fake_resolve(token, session_id=None, bind_session=True):
         return {
@@ -28,7 +30,9 @@ def test_resolve_share_endpoint_returns_share(monkeypatch):
 
 
 def test_resolve_share_endpoint_rejects_invalid_share(monkeypatch):
-    monkeypatch.setattr(apps.projects, "get", lambda project_id: {"id": project_id, "name": "demo", "path": "/tmp/demo"})
+    monkeypatch.setattr(
+        apps.projects, "get", lambda project_id: {"id": project_id, "name": "demo", "path": "/tmp/demo"}
+    )
 
     def fake_resolve(*args, **kwargs):
         raise apps.app_service.ShareAccessError("expired")
@@ -44,7 +48,9 @@ def test_resolve_share_endpoint_rejects_invalid_share(monkeypatch):
 
 
 def test_cleanup_shares_endpoint_returns_revoked_count(monkeypatch):
-    monkeypatch.setattr(apps.projects, "get", lambda project_id: {"id": project_id, "name": "demo", "path": "/tmp/demo"})
+    monkeypatch.setattr(
+        apps.projects, "get", lambda project_id: {"id": project_id, "name": "demo", "path": "/tmp/demo"}
+    )
     monkeypatch.setattr(apps.app_service, "cleanup_expired_share_urls", lambda: 3)
 
     assert apps.cleanup_app_shares("cap-demo") == {"revoked": 3}
@@ -81,11 +87,26 @@ def test_proxy_app_request_forwards_to_local_port(monkeypatch):
             received["closed"] = True
 
     monkeypatch.setattr(apps.http.client, "HTTPConnection", FakeConnection)
-    monkeypatch.setattr(apps.projects, "get", lambda project_id: {"id": project_id, "name": "demo", "path": "/tmp/demo"})
+    monkeypatch.setattr(
+        apps.projects, "get", lambda project_id: {"id": project_id, "name": "demo", "path": "/tmp/demo"}
+    )
 
     class FakeConfig:
         name = "demo"
-        apps = [type("AppCfg", (), {"id": "jupyter", "name": "Jupyter", "command": "jupyter lab", "port": 8123, "url_path": "/", "kind": "web"})()]
+        apps = [
+            type(
+                "AppCfg",
+                (),
+                {
+                    "id": "jupyter",
+                    "name": "Jupyter",
+                    "command": "jupyter lab",
+                    "port": 8123,
+                    "url_path": "/",
+                    "kind": "web",
+                },
+            )()
+        ]
 
     monkeypatch.setattr(apps.project_service, "load_config", lambda path: FakeConfig())
     monkeypatch.setattr(apps.project_service, "get_container_name", lambda name: "cap-demo")

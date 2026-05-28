@@ -1,6 +1,6 @@
 # @capsulelab/frontend
 
-React + TypeScript + Tailwind CSS dashboard for CapsuleLab.
+CapsuleLab's React dashboard for managing local projects, runtimes, apps, locations, and settings.
 
 ## Setup
 
@@ -14,7 +14,7 @@ npm install
 npm run dev
 ```
 
-Starts the Vite dev server on `http://localhost:5173`. Expects the CapsuleLab API at `http://localhost:8000`.
+Starts the dashboard on `http://localhost:5173`. The development proxy forwards `/api` requests to the CapsuleLab API on `http://localhost:8000`.
 
 ## Build
 
@@ -22,6 +22,11 @@ Starts the Vite dev server on `http://localhost:5173`. Expects the CapsuleLab AP
 npm run build
 ```
 
-## API Proxy
+## Stack
 
-During development, Vite proxies `/api` requests to `http://localhost:8000`. Configure in `vite.config.ts`.
+- React
+- TypeScript
+- Vite
+- Tailwind CSS
+
+Keep API proxy changes in `vite.config.ts` aligned with the backend CORS origins in `backend/main.py`.

@@ -9,16 +9,12 @@ class ProjectsRepository:
 
     def get(self, project_id: str) -> dict | None:
         with self._db() as conn:
-            row = conn.execute(
-                "SELECT * FROM projects WHERE id = ?", (project_id,)
-            ).fetchone()
+            row = conn.execute("SELECT * FROM projects WHERE id = ?", (project_id,)).fetchone()
             return dict(row) if row else None
 
     def list(self) -> list[dict]:
         with self._db() as conn:
-            rows = conn.execute(
-                "SELECT * FROM projects ORDER BY updated_at DESC"
-            ).fetchall()
+            rows = conn.execute("SELECT * FROM projects ORDER BY updated_at DESC").fetchall()
             return [dict(r) for r in rows]
 
     def register(self, project_id: str, name: str, path: str):
@@ -36,9 +32,7 @@ class ProjectsRepository:
             conn.execute("DELETE FROM build_metadata WHERE project_id = ?", (project_id,))
             conn.execute("DELETE FROM build_logs WHERE project_id = ?", (project_id,))
             conn.execute("DELETE FROM app_shares WHERE project_id = ?", (project_id,))
-            for sid in conn.execute(
-                "SELECT id FROM resource_snapshots WHERE project_id = ?", (project_id,)
-            ).fetchall():
+            for sid in conn.execute("SELECT id FROM resource_snapshots WHERE project_id = ?", (project_id,)).fetchall():
                 conn.execute("DELETE FROM container_resources WHERE snapshot_id = ?", (sid["id"],))
                 conn.execute("DELETE FROM app_resources WHERE snapshot_id = ?", (sid["id"],))
                 conn.execute("DELETE FROM compose_service_resources WHERE snapshot_id = ?", (sid["id"],))

@@ -7,7 +7,9 @@ class RunsRepository:
     def __init__(self, db_provider=None):
         self._db = db_provider or get_db
 
-    def create(self, run_id: str, project_id: str, name: str, notes: str | None = None, artifact_path: str | None = None):
+    def create(
+        self, run_id: str, project_id: str, name: str, notes: str | None = None, artifact_path: str | None = None
+    ):
         with self._db() as conn:
             conn.execute(
                 "INSERT INTO experiment_runs (id, project_id, name, notes, artifact_path) VALUES (?, ?, ?, ?, ?)",

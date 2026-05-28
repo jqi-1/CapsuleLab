@@ -5,7 +5,6 @@ from typing import Any
 
 from capsulelab.db import sqlite
 
-
 BACKUP_VERSION = 1
 BACKUP_TABLES = [
     "projects",

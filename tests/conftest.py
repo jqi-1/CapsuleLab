@@ -1,6 +1,7 @@
-import pytest
 import shutil
 import subprocess
+
+import pytest
 
 
 def docker_daemon_available() -> bool:
@@ -9,7 +10,9 @@ def docker_daemon_available() -> bool:
     try:
         result = subprocess.run(
             ["docker", "info", "--format", "{{.ServerVersion}}"],
-            capture_output=True, text=True, timeout=5,
+            capture_output=True,
+            text=True,
+            timeout=5,
         )
         return result.returncode == 0
     except (subprocess.TimeoutExpired, FileNotFoundError):

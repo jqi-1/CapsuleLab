@@ -1,10 +1,11 @@
-import pytest
-from pathlib import Path
 import tempfile
-import os
+from pathlib import Path
+
+import pytest
 import yaml
+
+from capsulelab.core.project import AppConfig, ProjectConfig, RuntimeConfig
 from capsulelab.services import project_service
-from capsulelab.core.project import ProjectConfig, RuntimeConfig, AppConfig
 
 
 @pytest.mark.pure_config

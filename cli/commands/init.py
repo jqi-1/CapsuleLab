@@ -1,11 +1,12 @@
-import typer
-import os
 from pathlib import Path
+
+import typer
 from rich.console import Console
 from rich.table import Table
-from capsulelab.services import project_service, template_service
-from capsulelab.db.sqlite import init_db
+
 from capsulelab.db.repositories import projects
+from capsulelab.db.sqlite import init_db
+from capsulelab.services import project_service, template_service
 
 console = Console()
 TEMPLATES_DIR = Path(__file__).resolve().parent.parent.parent / "templates"
@@ -16,9 +17,9 @@ def _list_templates() -> list[str]:
     if not templates_dir.exists():
         return []
     return [
-        d.name for d in templates_dir.iterdir()
-        if d.is_dir() and not d.name.startswith(".")
-        and (d / ".workbench" / "project.yaml").exists()
+        d.name
+        for d in templates_dir.iterdir()
+        if d.is_dir() and not d.name.startswith(".") and (d / ".workbench" / "project.yaml").exists()
     ]
 
 
@@ -33,7 +34,12 @@ def _show_template_table(mode: str | None = None):
     table.add_column("Description", style="green")
     table.add_column("GPU", style="yellow")
     table.add_column("Mode", style="magenta")
-    for name in sorted(templates, key=lambda t: template_service.MAINTAINED_TEMPLATES.index(t) if t in template_service.MAINTAINED_TEMPLATES else 99):
+    for name in sorted(
+        templates,
+        key=lambda t: (
+            template_service.MAINTAINED_TEMPLATES.index(t) if t in template_service.MAINTAINED_TEMPLATES else 99
+        ),
+    ):
         meta = manifest.get(name, {})
         table.add_row(
             name,
@@ -89,10 +95,12 @@ def init(
         config_path = Path(dest) / ".workbench" / "project.yaml"
         if config_path.exists():
             import yaml
+
             with open(config_path) as f:
                 cfg_data = yaml.safe_load(f)
             cfg_data["mode"] = mode
-            from capsulelab.models.project import default_presets, ProjectMode
+            from capsulelab.core.project import ProjectMode, default_presets
+
             pm = ProjectMode(mode) if mode in ("research", "deployable", "opensource") else None
             if pm:
                 cfg_data["presets"] = default_presets(pm)
@@ -105,6 +113,6 @@ def init(
 
     console.print(f"[green]✓[/green] Project [bold]{name}[/bold] created at {dest}")
     console.print(f"  [dim]cd {dest}[/dim]")
-    console.print(f"  [dim]cap doctor[/dim]    — check project readiness")
-    console.print(f"  [dim]cap build[/dim]     — build container image")
-    console.print(f"  [dim]cap start[/dim]     — start project container")
+    console.print("  [dim]cap doctor[/dim]    — check project readiness")
+    console.print("  [dim]cap build[/dim]     — build container image")
+    console.print("  [dim]cap start[/dim]     — start project container")

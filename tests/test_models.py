@@ -1,5 +1,14 @@
 import pytest
-from capsulelab.core.project import ProjectConfig, RuntimeConfig, AppConfig, Mount, RuntimeType, Dataset, SecretRef
+
+from capsulelab.core.project import (
+    AppConfig,
+    Dataset,
+    Mount,
+    ProjectConfig,
+    RuntimeConfig,
+    RuntimeType,
+    SecretRef,
+)
 
 
 def test_project_config_minimal():

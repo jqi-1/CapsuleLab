@@ -7,10 +7,24 @@ class LocationsRepository:
     def __init__(self, db_provider=None):
         self._db = db_provider or get_db
 
-    def register(self, location_id: str, name: str, type_: str, host: str | None, user: str | None, project_root: str | None, runtime: str, gpu: bool):
+    def register(
+        self,
+        location_id: str,
+        name: str,
+        type_: str,
+        host: str | None,
+        user: str | None,
+        project_root: str | None,
+        runtime: str,
+        gpu: bool,
+    ):
         with self._db() as conn:
             conn.execute(
-                "INSERT OR REPLACE INTO locations (id, name, type, host, user, project_root, runtime, gpu) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                (
+                    "INSERT OR REPLACE INTO locations "
+                    "(id, name, type, host, user, project_root, runtime, gpu) "
+                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+                ),
                 (location_id, name, type_, host, user, project_root, runtime, int(gpu)),
             )
 
@@ -20,37 +34,27 @@ class LocationsRepository:
 
     def list(self) -> list[dict]:
         with self._db() as conn:
-            rows = conn.execute(
-                "SELECT * FROM locations ORDER BY created_at DESC"
-            ).fetchall()
+            rows = conn.execute("SELECT * FROM locations ORDER BY created_at DESC").fetchall()
             return [dict(r) for r in rows]
 
     def get(self, location_id: str) -> dict | None:
         with self._db() as conn:
-            row = conn.execute(
-                "SELECT * FROM locations WHERE id = ?", (location_id,)
-            ).fetchone()
+            row = conn.execute("SELECT * FROM locations WHERE id = ?", (location_id,)).fetchone()
             return dict(row) if row else None
 
     def get_by_name(self, name: str) -> dict | None:
         with self._db() as conn:
-            row = conn.execute(
-                "SELECT * FROM locations WHERE name = ?", (name,)
-            ).fetchone()
+            row = conn.execute("SELECT * FROM locations WHERE name = ?", (name,)).fetchone()
             return dict(row) if row else None
 
     def list_tunnels(self) -> list[dict]:
         with self._db() as conn:
-            rows = conn.execute(
-                "SELECT * FROM location_tunnels ORDER BY proxy_port"
-            ).fetchall()
+            rows = conn.execute("SELECT * FROM location_tunnels ORDER BY proxy_port").fetchall()
             return [dict(r) for r in rows]
 
     def get_tunnel(self, location_id: str) -> dict | None:
         with self._db() as conn:
-            row = conn.execute(
-                "SELECT * FROM location_tunnels WHERE location_id = ?", (location_id,)
-            ).fetchone()
+            row = conn.execute("SELECT * FROM location_tunnels WHERE location_id = ?", (location_id,)).fetchone()
             return dict(row) if row else None
 
     def set_tunnel(self, location_id: str, proxy_port: int, service_port: int):

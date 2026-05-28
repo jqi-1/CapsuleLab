@@ -1,6 +1,6 @@
-import streamlit as st
-import pandas as pd
 import numpy as np
+import pandas as pd
+import streamlit as st
 
 st.set_page_config(page_title="Dashboard", layout="wide")
 st.title("Dashboard")
@@ -14,11 +14,13 @@ with tab1:
     with col2:
         st.metric("Sample Size", n)
 
-    data = pd.DataFrame({
-        "x": np.random.randn(n),
-        "y": np.random.randn(n),
-        "category": np.random.choice(["A", "B", "C"], n),
-    })
+    data = pd.DataFrame(
+        {
+            "x": np.random.randn(n),
+            "y": np.random.randn(n),
+            "category": np.random.choice(["A", "B", "C"], n),
+        }
+    )
     st.scatter_chart(data, x="x", y="y", color="category")
     st.dataframe(data.describe())
 

@@ -1,9 +1,10 @@
-from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel
 from typing import Optional
 
+from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel
+
 from capsulelab.db.repositories import locations
-from capsulelab.services import ssh_service, location_override_service
+from capsulelab.services import ssh_service
 
 router = APIRouter()
 
@@ -36,6 +37,7 @@ def create_location(req: CreateLocationRequest):
     if existing:
         raise HTTPException(409, f"Location '{req.name}' already exists")
     from uuid import uuid4
+
     location_id = str(uuid4())
     locations.register(location_id, req.name, "ssh", req.host, req.user, req.project_root, req.runtime, req.gpu)
     loc = locations.get_by_name(req.name)
@@ -108,7 +110,9 @@ def add_location_override(name: str, req: SetOverrideRequest):
     if req.override_type not in ("dataset", "cache", "secret"):
         raise HTTPException(400, "override_type must be 'dataset', 'cache', or 'secret'")
     locations.set_override(loc["id"], req.override_type, req.logical_name, req.value)
-    return SetOverrideResponse(location=name, override_type=req.override_type, logical_name=req.logical_name, value=req.value)
+    return SetOverrideResponse(
+        location=name, override_type=req.override_type, logical_name=req.logical_name, value=req.value
+    )
 
 
 @router.delete("/{name}/overrides/{override_type}/{logical_name}")

@@ -1,8 +1,23 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from capsulelab.db.sqlite import init_db
-from backend.api import projects, apps, logs, compose, locations, backlog, resources, registry, models, metadata, settings
+
+from backend.api import (
+    apps,
+    backlog,
+    compose,
+    environment,
+    ide,
+    locations,
+    logs,
+    metadata,
+    models,
+    projects,
+    registry,
+    resources,
+    settings,
+)
 from backend.config import settings as app_settings
+from capsulelab.db.sqlite import init_db
 from capsulelab.services import docker_service, gpu_service
 
 app = FastAPI(title="CapsuleLab API", version="0.1.0")
@@ -10,12 +25,14 @@ app = FastAPI(title="CapsuleLab API", version="0.1.0")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=app_settings.cors_origins,
-    allow_credentials=False,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type"],
 )
 
 app.include_router(projects.router, prefix="/api/projects", tags=["projects"])
+app.include_router(ide.router, prefix="/api/projects", tags=["ide"])
+app.include_router(environment.router, prefix="/api/projects", tags=["environment"])
 app.include_router(apps.router, prefix="/api/projects/{project_id}/apps", tags=["apps"])
 app.include_router(logs.router, prefix="/api/projects/{project_id}", tags=["logs"])
 app.include_router(compose.router, prefix="/api/projects/{project_id}", tags=["compose"])
@@ -41,6 +58,7 @@ def health():
 @app.get("/api/profiles")
 def list_profiles():
     from capsulelab.services import profile_service
+
     return profile_service.list_profiles()
 
 

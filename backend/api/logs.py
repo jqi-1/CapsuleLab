@@ -1,6 +1,8 @@
 from fastapi import APIRouter, HTTPException, Query
-from capsulelab.services import docker_service, project_service, app_service
+
 from capsulelab.db.repositories import projects
+from capsulelab.services import app_service, docker_service, project_service
+from capsulelab.services.runtime_service import LocalDockerAdapter
 
 router = APIRouter()
 
@@ -39,7 +41,7 @@ def get_app_logs(
     except app_service.AppError as e:
         raise HTTPException(404, str(e))
     try:
-        output = app_service.get_app_logs(container_name, app_cfg.id, tail=tail)
+        output = app_service.get_app_logs(LocalDockerAdapter(), container_name, app_cfg.id, tail=tail)
         return {"logs": output, "app_id": app_cfg.id}
     except app_service.AppError as e:
         raise HTTPException(400, str(e))

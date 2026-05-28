@@ -32,7 +32,10 @@ class SecretsRepository:
     def list(self, project_id: str) -> list[dict]:
         with self._db() as conn:
             rows = conn.execute(
-                "SELECT project_id, name, NULLIF(location, '') AS location, updated_at FROM secrets WHERE project_id = ? ORDER BY name, location",
+                (
+                    "SELECT project_id, name, NULLIF(location, '') AS location, updated_at "
+                    "FROM secrets WHERE project_id = ? ORDER BY name, location"
+                ),
                 (project_id,),
             ).fetchall()
             return [dict(r) for r in rows]

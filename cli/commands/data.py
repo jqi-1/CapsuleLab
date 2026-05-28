@@ -5,7 +5,7 @@ import yaml
 from rich.console import Console
 from rich.table import Table
 
-from capsulelab.services import project_service, model_service
+from capsulelab.services import model_service, project_service
 
 console = Console()
 data_cmd = typer.Typer(name="data", help="Manage dataset and cache metadata in project.yaml", no_args_is_help=True)

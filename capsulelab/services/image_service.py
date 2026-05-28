@@ -1,5 +1,9 @@
+from __future__ import annotations
+
 from pathlib import Path
 
+from capsulelab.core.checks import DoctorCheck
+from capsulelab.core.errors import Severity
 
 BASE_IMAGES = {
     "python": {
@@ -31,13 +35,37 @@ def dockerfile_preview(project_path: str, dockerfile: str = "Dockerfile") -> dic
     return {"exists": True, "dockerfile": dockerfile, "content": path.read_text()}
 
 
+def check_health(project_path: str, config) -> list[DoctorCheck]:
+    checks = []
+    for check in byoc_checks(project_path, getattr(config.runtime, "dockerfile", "Dockerfile")):
+        sev = Severity.ERROR if not check["ok"] else Severity.INFO
+        checks.append(
+            DoctorCheck(label=f"BYOC: {check['label']}", severity=sev, ok=check["ok"], detail=check["detail"])
+        )
+    return checks
+
+
 def byoc_checks(project_path: str, dockerfile: str = "Dockerfile") -> list[dict]:
     preview = dockerfile_preview(project_path, dockerfile)
     if not preview["exists"]:
         return [{"label": "Dockerfile", "ok": False, "detail": f"{dockerfile} missing"}]
     content = preview["content"]
     return [
-        {"label": "Base image", "ok": "FROM " in content, "detail": "FROM present" if "FROM " in content else "Missing FROM"},
-        {"label": "Python availability", "ok": "python" in content.lower() or "pip" in content.lower(), "detail": "Python/pip mentioned" if ("python" in content.lower() or "pip" in content.lower()) else "Not detected"},
-        {"label": "Workspace", "ok": "WORKDIR" in content, "detail": "WORKDIR present" if "WORKDIR" in content else "Missing WORKDIR"},
+        {
+            "label": "Base image",
+            "ok": "FROM " in content,
+            "detail": "FROM present" if "FROM " in content else "Missing FROM",
+        },
+        {
+            "label": "Python availability",
+            "ok": "python" in content.lower() or "pip" in content.lower(),
+            "detail": "Python/pip mentioned"
+            if ("python" in content.lower() or "pip" in content.lower())
+            else "Not detected",
+        },
+        {
+            "label": "Workspace",
+            "ok": "WORKDIR" in content,
+            "detail": "WORKDIR present" if "WORKDIR" in content else "Missing WORKDIR",
+        },
     ]

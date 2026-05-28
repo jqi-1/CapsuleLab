@@ -48,12 +48,7 @@ def test_summary_indexes_when_cache_is_empty(tmp_path, monkeypatch):
 
 def test_search_and_inspect_return_dynamic_subgraphs(tmp_path, monkeypatch):
     monkeypatch.setattr(graph_service, "GRAPH_STORAGE", tmp_path / "graphs")
-    (tmp_path / "main.py").write_text(
-        "def alpha():\n"
-        "    beta()\n\n"
-        "def beta():\n"
-        "    return 1\n"
-    )
+    (tmp_path / "main.py").write_text("def alpha():\n    beta()\n\ndef beta():\n    return 1\n")
     graph_service.index_project("cap-demo", str(tmp_path))
 
     search_result = graph_service.search("cap-demo", str(tmp_path), query="alpha")

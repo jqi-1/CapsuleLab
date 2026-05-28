@@ -1,9 +1,10 @@
 import os
 import shutil
-import yaml
 from pathlib import Path
-from capsulelab.core.project import ProjectConfig, default_presets, ProjectMode
 
+import yaml
+
+from capsulelab.core.project import ProjectConfig, ProjectMode, default_presets
 
 WORKBENCH_DIR = ".workbench"
 CONFIG_FILE = "project.yaml"
@@ -102,7 +103,7 @@ def validate(config: ProjectConfig, project_path: str | None = None) -> list[str
     if config.mode == ProjectMode.deployable:
         p = Path(project_path or ".")
         if not (p / "tests").exists():
-            warnings.append(f"Deployable mode: tests/ directory not found")
+            warnings.append("Deployable mode: tests/ directory not found")
         if config.runtime.type.value != "docker":
             warnings.append(f"Deployable mode: runtime type should be 'docker', got '{config.runtime.type.value}'")
     elif config.mode == ProjectMode.opensource:
@@ -113,7 +114,7 @@ def validate(config: ProjectConfig, project_path: str | None = None) -> list[str
     elif config.mode == ProjectMode.research:
         p = Path(project_path or ".")
         if not (p / "notebooks").exists():
-            warnings.append(f"Research mode: notebooks/ directory not found")
+            warnings.append("Research mode: notebooks/ directory not found")
 
     return warnings
 
@@ -139,6 +140,7 @@ def create_from_template(name: str, template_path: str, dest_path: str, image_na
         with open(path, "w") as f:
             yaml.dump(config, f, default_flow_style=False)
     from capsulelab.services.git_service import init_repo
+
     init_repo(str(dest))
     return str(dest)
 
@@ -154,11 +156,13 @@ def find_projects(base_dir: str | None = None) -> list[dict]:
             if path.exists():
                 try:
                     cfg = load_config(str(child))
-                    projects.append({
-                        "name": cfg.name,
-                        "path": str(child),
-                        "config": cfg,
-                    })
+                    projects.append(
+                        {
+                            "name": cfg.name,
+                            "path": str(child),
+                            "config": cfg,
+                        }
+                    )
                 except Exception:
                     pass
     return projects
@@ -181,6 +185,5 @@ def resolve_project_path(given_path: str | None = None) -> str:
         if (parent / WORKBENCH_DIR / CONFIG_FILE).exists():
             return str(parent)
     raise FileNotFoundError(
-        "No .workbench/project.yaml found in current or parent directories."
-        " Run from a project directory or use --path."
+        "No .workbench/project.yaml found in current or parent directories. Run from a project directory or use --path."
     )

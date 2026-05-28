@@ -1,8 +1,9 @@
 import typer
 from rich.console import Console
+
+from capsulelab.db.repositories import builds, locations
 from capsulelab.services import docker_service, project_service, ssh_service
 from capsulelab.services.docker_service import parse_image_tag
-from capsulelab.db.repositories import builds, locations
 
 console = Console()
 
@@ -59,7 +60,12 @@ def build(
         builds.add_log(project_id, result, "success", build_logs)
         try:
             image_info = docker_service.inspect_image(result)
-            builds.set_metadata(project_id, result, image_id=image_info.get("Id"), digest=",".join(image_info.get("RepoDigests", []) or []))
+            builds.set_metadata(
+                project_id,
+                result,
+                image_id=image_info.get("Id"),
+                digest=",".join(image_info.get("RepoDigests", []) or []),
+            )
         except Exception:
             builds.set_metadata(project_id, result)
         console.print(f"[green]✓[/green] Image built: {result}")
@@ -67,7 +73,7 @@ def build(
         builds.add_log(project_id, image, "failed", e.stderr or str(e))
         console.print(f"[red]Build failed:[/red] {e.message}")
         if e.stderr:
-            console.print(f"\n[bold]Build output:[/bold]")
+            console.print("\n[bold]Build output:[/bold]")
             console.print(f"[dim]{e.stderr[:2000]}[/dim]")
         if e.suggestion:
             console.print(f"\n[yellow]Suggestion:[/yellow] {e.suggestion}")

@@ -1,6 +1,11 @@
-import subprocess
+from __future__ import annotations
+
 import shutil
+import subprocess
 from dataclasses import dataclass
+
+from capsulelab.core.checks import DoctorCheck
+from capsulelab.core.errors import Severity
 
 
 @dataclass
@@ -44,9 +49,7 @@ def get_gpu_info() -> GpuInfo:
         driver = parts[2] if len(parts) > 2 else ""
         cuda = ""
         try:
-            nvcc = subprocess.run(
-                ["nvcc", "--version"], capture_output=True, text=True, timeout=5
-            )
+            nvcc = subprocess.run(["nvcc", "--version"], capture_output=True, text=True, timeout=5)
             for line in nvcc.stdout.splitlines():
                 if "release" in line:
                     cuda = line.split("release")[-1].strip().split(",")[0]
@@ -57,13 +60,57 @@ def get_gpu_info() -> GpuInfo:
         return GpuInfo(available=False)
 
 
+def check_health(config=None) -> list[DoctorCheck]:
+    gpu_info = get_gpu_info()
+    checks = []
+    if gpu_info.available:
+        checks.append(
+            DoctorCheck(
+                label="GPU detected", severity=Severity.INFO, ok=True, detail=f"{gpu_info.name} ({gpu_info.vram_mb} MB)"
+            )
+        )
+        docker_gpu = docker_gpu_available()
+        checks.append(
+            DoctorCheck(
+                label="Docker GPU support",
+                severity=Severity.WARNING,
+                ok=docker_gpu,
+                detail="Available" if docker_gpu else "nvidia-container-toolkit not configured",
+            )
+        )
+    else:
+        checks.append(
+            DoctorCheck(
+                label="GPU detected",
+                severity=Severity.INFO,
+                ok=False,
+                detail="No NVIDIA GPU found — running in CPU mode",
+            )
+        )
+
+    if config and getattr(config.runtime, "gpu", False) and not gpu_info.available:
+        checks.append(
+            DoctorCheck(
+                label="GPU requested",
+                severity=Severity.WARNING,
+                ok=False,
+                detail="Project requires GPU but none detected",
+                suggestion="Install NVIDIA drivers and nvidia-container-toolkit",
+            )
+        )
+
+    return checks
+
+
 def docker_gpu_available() -> bool:
     if not shutil.which("docker"):
         return False
     try:
         result = subprocess.run(
             ["docker", "info", "--format", "{{.Runtimes}}"],
-            capture_output=True, text=True, timeout=15,
+            capture_output=True,
+            text=True,
+            timeout=15,
         )
         return "nvidia" in result.stdout
     except (subprocess.TimeoutExpired, FileNotFoundError):
